@@ -1,0 +1,1 @@
+ALTER TABLE `object_type` ADD `requestable` boolean DEFAULT true NOT NULL;

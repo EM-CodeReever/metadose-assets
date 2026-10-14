@@ -1,0 +1,176 @@
+/**
+ * metadose Typography System
+ * ─────────────────────────────────────────────────────────────────
+ * Requires tokens.css to be imported first for var(--md-*) to resolve.
+ *
+ * Usage:
+ *   @import './tokens/tokens.css';
+ *   @import './components/typography.css';
+ *
+ * Class reference:
+ *   .md-display   — Page / section hero titles (32–40px)
+ *   .md-heading-1 — Primary headings (24px)
+ *   .md-heading-2 — Secondary headings (20px)
+ *   .md-heading-3 — Card / subsection titles (16px)
+ *   .md-body      — Default body copy (14px)
+ *   .md-body-sm   — Secondary body, descriptions (12px)
+ *   .md-label     — Uppercase metadata labels (10px)
+ *   .md-mono      — Asset IDs, serial numbers, code (13px JetBrains Mono)
+ *   .md-caption   — Table sub-rows, help text (11px)
+ * ─────────────────────────────────────────────────────────────────
+ */
+
+/* ── Base reset ──────────────────────────────────────────────────── */
+/* `button` is deliberately excluded here — daisyUI's own .btn variants (btn-primary,
+   btn-error, ...) each compute their own correctly-contrasting text color per theme
+   (e.g. --color-primary-content), and forcing a single --md-fg text color on every
+   button regardless of its background washed that contrast out (near-illegible text
+   on several themes' colored buttons). Buttons stay fully theme-controlled instead. */
+body, input, select, textarea {
+  font-family: var(--md-font-ui);
+  font-size: var(--md-text-base);
+  line-height: var(--md-leading-normal);
+  color: var(--md-fg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Display ─────────────────────────────────────────────────────── */
+.md-display {
+  font-family: var(--md-font-ui);
+  font-size: var(--md-text-3xl);       /* 40px */
+  font-weight: var(--md-weight-bold);
+  letter-spacing: var(--md-tracking-tight);
+  line-height: var(--md-leading-tight);
+  text-wrap: balance;
+  color: var(--md-fg);
+}
+
+/* ── Headings ────────────────────────────────────────────────────── */
+.md-heading-1 {
+  font-family: var(--md-font-ui);
+  font-size: var(--md-text-xl);        /* 24px */
+  font-weight: var(--md-weight-bold);
+  letter-spacing: var(--md-tracking-tight);
+  line-height: var(--md-leading-snug);
+  text-wrap: balance;
+  color: var(--md-fg);
+}
+
+.md-heading-2 {
+  font-family: var(--md-font-ui);
+  font-size: var(--md-text-lg);        /* 20px */
+  font-weight: var(--md-weight-semibold);
+  letter-spacing: var(--md-tracking-snug);
+  line-height: var(--md-leading-snug);
+  text-wrap: balance;
+  color: var(--md-fg);
+}
+
+.md-heading-3 {
+  font-family: var(--md-font-ui);
+  font-size: var(--md-text-md);        /* 16px */
+  font-weight: var(--md-weight-semibold);
+  letter-spacing: var(--md-tracking-normal);
+  line-height: var(--md-leading-snug);
+  color: var(--md-fg);
+}
+
+/* ── Body ────────────────────────────────────────────────────────── */
+.md-body {
+  font-size: var(--md-text-base);      /* 14px */
+  font-weight: var(--md-weight-regular);
+  line-height: var(--md-leading-relaxed);
+  color: var(--md-fg-muted);
+  max-width: 65ch;
+}
+
+.md-body-sm {
+  font-size: var(--md-text-sm);        /* 12px */
+  font-weight: var(--md-weight-regular);
+  line-height: var(--md-leading-normal);
+  color: var(--md-fg-muted);
+}
+
+/* ── Label (uppercase metadata) ──────────────────────────────────── */
+.md-label {
+  font-family: var(--md-font-ui);
+  font-size: var(--md-text-xs);        /* 10px */
+  font-weight: var(--md-weight-semibold);
+  letter-spacing: var(--md-tracking-widest);
+  text-transform: uppercase;
+  color: var(--md-fg-subtle);
+  line-height: 1.4;
+}
+
+/* ── Monospace (asset IDs, serials, code) ────────────────────────── */
+.md-mono {
+  font-family: var(--md-font-mono);
+  font-size: 13px;
+  font-weight: var(--md-weight-regular);
+  letter-spacing: var(--md-tracking-normal);
+  color: var(--md-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Caption (table sub-rows, help text) ─────────────────────────── */
+.md-caption {
+  font-size: 11px;
+  font-weight: var(--md-weight-regular);
+  line-height: var(--md-leading-normal);
+  color: var(--md-fg-subtle);
+}
+
+/* ── Numeric data (KPIs, counts) ─────────────────────────────────── */
+.md-stat {
+  font-family: var(--md-font-ui);
+  font-size: var(--md-text-2xl);       /* 32px */
+  font-weight: var(--md-weight-bold);
+  letter-spacing: var(--md-tracking-tight);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--md-fg);
+}
+
+/* ── Wordmark classes ─────────────────────────────────────────────── */
+.md-wordmark {
+  font-family: var(--md-font-ui);
+  font-size: 17px;
+  font-weight: var(--md-weight-bold);
+  letter-spacing: -0.03em;
+  color: var(--md-fg);
+  line-height: 1;
+}
+
+.md-wordmark-suffix {
+  font-family: var(--md-font-ui);
+  font-size: 13px;
+  font-weight: var(--md-weight-light);
+  letter-spacing: 0.03em;
+  color: var(--md-accent);
+}
+
+/* ── Link ─────────────────────────────────────────────────────────── */
+.md-link {
+  color: var(--md-accent);
+  text-decoration: none;
+  font-weight: var(--md-weight-medium);
+  transition: color var(--md-duration-fast) var(--md-ease);
+}
+.md-link:hover { color: var(--md-accent-hover); text-decoration: underline; }
+.md-link:focus-visible {
+  outline: 2px solid var(--md-border-focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* ── Code inline ─────────────────────────────────────────────────── */
+.md-code-inline {
+  font-family: var(--md-font-mono);
+  font-size: 12px;
+  background: var(--md-bg-muted);
+  color: var(--md-fg);
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--md-border);
+}

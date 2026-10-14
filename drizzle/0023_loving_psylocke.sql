@@ -1,0 +1,1 @@
+ALTER TABLE `object_type` ADD `allow_component_install` boolean DEFAULT false NOT NULL;

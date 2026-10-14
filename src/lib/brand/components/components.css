@@ -1,0 +1,402 @@
+/**
+ * metadose UI Components
+ * ─────────────────────────────────────────────────────────────────
+ * Requires tokens.css to be imported first.
+ * Each component is self-contained — copy only what you need,
+ * or import this whole file.
+ *
+ * Contents:
+ *   Buttons        .md-btn, .md-btn-primary, .md-btn-secondary,
+ *                  .md-btn-ghost, .md-btn-danger, .md-btn-sm
+ *   Badges         .md-badge, .md-badge-{online,warning,retired,critical}
+ *   Chips          .md-chip, .md-chip-{accent,cyan,lime}
+ *   Cards          .md-card
+ *   Table          .md-table
+ *   Form fields    .md-field, .md-input, .md-select
+ *   KPI tile       .md-kpi
+ *   Status dot     .md-dot-{online,warning,offline,critical}
+ * ─────────────────────────────────────────────────────────────────
+ */
+
+/* ═══════════════════════════════════════════════════════════════════
+   BUTTONS
+═══════════════════════════════════════════════════════════════════ */
+.md-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 18px;
+  border-radius: var(--md-radius-sm);
+  font-family: var(--md-font-ui);
+  font-size: var(--md-text-sm);        /* 12px */
+  font-weight: var(--md-weight-semibold);
+  letter-spacing: var(--md-tracking-wide);
+  cursor: pointer;
+  border: none;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background var(--md-duration-fast) var(--md-ease),
+    box-shadow  var(--md-duration-fast) var(--md-ease),
+    opacity     var(--md-duration-fast) var(--md-ease);
+  -webkit-font-smoothing: antialiased;
+}
+.md-btn:focus-visible {
+  outline: 2px solid var(--md-border-focus);
+  outline-offset: 2px;
+}
+.md-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.md-btn svg { flex-shrink: 0; }
+
+/* Sizes */
+.md-btn-sm { padding: 6px 12px; font-size: var(--md-text-xs); gap: 4px; }
+.md-btn-lg { padding: 12px 24px; font-size: var(--md-text-base); }
+
+/* Primary */
+.md-btn-primary {
+  background: var(--md-accent);
+  color: var(--color-primary-content);
+  box-shadow: var(--md-shadow-accent);
+}
+.md-btn-primary:hover:not(:disabled) {
+  background: var(--md-accent-hover);
+  box-shadow: 0 4px 16px color-mix(in oklch, var(--md-accent) 40%, transparent);
+}
+
+/* Secondary */
+.md-btn-secondary {
+  background: var(--md-bg-muted);
+  color: var(--md-fg);
+  border: 1px solid var(--md-border-strong);
+  box-shadow: var(--md-shadow-sm);
+}
+.md-btn-secondary:hover:not(:disabled) {
+  background: var(--md-bg-card);
+  border-color: var(--md-fg-subtle);
+}
+
+/* Ghost (outline) */
+.md-btn-ghost {
+  background: transparent;
+  color: var(--md-accent);
+  border: 1px solid var(--md-accent);
+}
+.md-btn-ghost:hover:not(:disabled) {
+  background: var(--md-accent-soft);
+}
+
+/* Danger */
+.md-btn-danger {
+  background: var(--md-danger-bg);
+  color: var(--md-danger);
+  border: 1px solid color-mix(in srgb, var(--md-danger) 30%, transparent);
+}
+.md-btn-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--md-danger) 15%, transparent);
+}
+
+/* Icon only */
+.md-btn-icon {
+  padding: 8px;
+  border-radius: var(--md-radius-sm);
+  aspect-ratio: 1;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   BADGES  (asset lifecycle status)
+═══════════════════════════════════════════════════════════════════ */
+.md-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: var(--md-radius-pill);
+  font-family: var(--md-font-ui);
+  font-size: 11px;
+  font-weight: var(--md-weight-semibold);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* Status dot before element */
+.md-badge::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.md-badge-online   { background: var(--md-success-bg); color: var(--md-success); }
+.md-badge-online::before   { background: var(--md-success); }
+
+.md-badge-warning  { background: var(--md-warning-bg); color: var(--md-warning); }
+.md-badge-warning::before  { background: var(--md-warning); }
+
+.md-badge-retired  { background: var(--md-bg-muted); color: var(--md-fg-subtle); }
+.md-badge-retired::before  { background: var(--md-fg-subtle); }
+
+.md-badge-critical { background: var(--md-danger-bg); color: var(--md-danger); }
+.md-badge-critical::before { background: var(--md-danger); }
+
+.md-badge-info     { background: var(--md-info-bg); color: var(--md-info); }
+.md-badge-info::before     { background: var(--md-info); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   CHIPS  (category / tag pills)
+═══════════════════════════════════════════════════════════════════ */
+.md-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: var(--md-radius-pill);
+  font-family: var(--md-font-ui);
+  font-size: 11px;
+  font-weight: var(--md-weight-semibold);
+  letter-spacing: var(--md-tracking-wide);
+  white-space: nowrap;
+}
+
+.md-chip-accent { background: var(--md-accent-soft); color: var(--md-accent); }
+.md-chip-cyan   { background: var(--md-cyan-soft);   color: var(--md-cyan); }
+.md-chip-lime   {
+  background: var(--md-success-bg);
+  color: var(--md-success);
+}
+.md-chip-muted  { background: var(--md-bg-muted); color: var(--md-fg-subtle); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   CARDS
+═══════════════════════════════════════════════════════════════════ */
+.md-card {
+  background: var(--md-bg-card);
+  border: 1px solid var(--md-border);
+  border-radius: var(--md-radius-lg);
+  padding: var(--md-space-6);
+  box-shadow: var(--md-shadow-sm);
+}
+
+.md-card-raised {
+  box-shadow: var(--md-shadow-md);
+}
+
+.md-card-accent {
+  border-color: var(--md-accent);
+  background: linear-gradient(135deg, var(--md-accent-glow) 0%, transparent 60%),
+              var(--md-bg-card);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   TABLE
+═══════════════════════════════════════════════════════════════════ */
+.md-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--md-text-sm);
+}
+
+.md-table th {
+  text-align: left;
+  padding: 8px 12px;
+  color: var(--md-fg-subtle);
+  font-size: var(--md-text-xs);
+  font-weight: var(--md-weight-semibold);
+  letter-spacing: var(--md-tracking-wider);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--md-border);
+  white-space: nowrap;
+}
+
+.md-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--md-border);
+  color: var(--md-fg);
+  vertical-align: middle;
+}
+
+.md-table tbody tr:last-child td { border-bottom: none; }
+
+.md-table tbody tr:hover td {
+  background: var(--md-bg-muted);
+}
+
+/* Asset ID cell */
+.md-table .md-asset-id {
+  font-family: var(--md-font-mono);
+  font-size: 11px;
+  color: var(--md-accent);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Sub-text in a cell */
+.md-table .md-cell-sub {
+  display: block;
+  font-size: 11px;
+  color: var(--md-fg-subtle);
+  margin-top: 1px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   FORM FIELDS
+═══════════════════════════════════════════════════════════════════ */
+.md-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--md-space-1);
+}
+
+.md-field label {
+  font-size: var(--md-text-sm);
+  font-weight: var(--md-weight-semibold);
+  color: var(--md-fg-muted);
+}
+
+.md-input,
+.md-select {
+  background: var(--md-bg);
+  border: 1px solid var(--md-border-strong);
+  border-radius: var(--md-radius-sm);
+  padding: 9px 12px;
+  font-family: var(--md-font-ui);
+  font-size: var(--md-text-sm);
+  color: var(--md-fg);
+  outline: none;
+  transition: border-color var(--md-duration-fast) var(--md-ease),
+              box-shadow   var(--md-duration-fast) var(--md-ease);
+  width: 100%;
+}
+
+.md-input:focus,
+.md-select:focus {
+  border-color: var(--md-border-focus);
+  box-shadow: 0 0 0 3px var(--md-accent-glow);
+}
+
+.md-input::placeholder { color: var(--md-fg-subtle); }
+
+.md-input-mono {
+  font-family: var(--md-font-mono);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+
+/* Field help text */
+.md-field-help {
+  font-size: 11px;
+  color: var(--md-fg-subtle);
+}
+
+/* Field error state */
+.md-input-error {
+  border-color: var(--md-danger);
+}
+.md-input-error:focus {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--md-danger) 20%, transparent);
+}
+.md-field-error-msg {
+  font-size: 11px;
+  color: var(--md-danger);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   KPI TILES
+═══════════════════════════════════════════════════════════════════ */
+.md-kpi {
+  background: var(--md-bg-card);
+  border: 1px solid var(--md-border);
+  border-radius: var(--md-radius);
+  padding: var(--md-space-4) var(--md-space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--md-space-1);
+  box-shadow: var(--md-shadow-sm);
+}
+
+.md-kpi-value {
+  font-size: var(--md-text-2xl);
+  font-weight: var(--md-weight-bold);
+  letter-spacing: var(--md-tracking-tight);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--md-fg);
+}
+
+.md-kpi-label {
+  font-size: 11px;
+  color: var(--md-fg-muted);
+}
+
+/* Accent variant */
+.md-kpi-accent {
+  background: var(--md-accent-soft);
+  border-color: var(--md-accent);
+}
+.md-kpi-accent .md-kpi-value { color: var(--md-accent); }
+.md-kpi-accent .md-kpi-label { color: var(--md-accent); opacity: 0.7; }
+
+/* Danger variant */
+.md-kpi-danger { border-color: var(--md-danger); }
+.md-kpi-danger .md-kpi-value { color: var(--md-danger); }
+
+/* Warning variant */
+.md-kpi-warning { border-color: var(--md-warning); }
+.md-kpi-warning .md-kpi-value { color: var(--md-warning); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   STATUS DOT (inline, no text)
+═══════════════════════════════════════════════════════════════════ */
+.md-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.md-dot-online   { background: var(--md-success); }
+.md-dot-warning  { background: var(--md-warning); }
+.md-dot-critical { background: var(--md-danger); }
+.md-dot-offline  { background: var(--md-fg-subtle); }
+
+/* Pulsing "live" dot */
+.md-dot-pulse {
+  background: var(--md-success);
+  animation: md-pulse 2s ease-in-out infinite;
+}
+@keyframes md-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklch, var(--md-success) 40%, transparent); }
+  50%       { box-shadow: 0 0 0 5px color-mix(in oklch, var(--md-success) 0%, transparent); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   DIVIDER
+═══════════════════════════════════════════════════════════════════ */
+.md-divider {
+  border: none;
+  border-top: 1px solid var(--md-border);
+  margin: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SECTION HEADER  (label + rule)
+═══════════════════════════════════════════════════════════════════ */
+.md-section-head {
+  display: flex;
+  align-items: center;
+  gap: var(--md-space-3);
+}
+.md-section-head__title {
+  font-size: var(--md-text-xs);
+  font-weight: var(--md-weight-semibold);
+  letter-spacing: var(--md-tracking-widest);
+  text-transform: uppercase;
+  color: var(--md-fg-subtle);
+  white-space: nowrap;
+}
+.md-section-head__rule {
+  flex: 1;
+  height: 1px;
+  background: var(--md-border);
+}

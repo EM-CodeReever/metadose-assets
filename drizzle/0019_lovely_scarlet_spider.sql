@@ -1,0 +1,1 @@
+ALTER TABLE `lookup_value` ADD `out_of_service` boolean DEFAULT false NOT NULL;

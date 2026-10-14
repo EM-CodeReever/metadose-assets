@@ -1,0 +1,1 @@
+ALTER TABLE `object_type` DROP COLUMN `barcode_field_key`;

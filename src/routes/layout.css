@@ -1,0 +1,16 @@
+@import 'tailwindcss';
+/* 'class' strategy: this app styles every form control through daisyUI's own .select/.checkbox/
+   etc. classes, never Tailwind Forms' own utility classes — but Forms' default 'base' strategy
+   resets native form elements globally regardless, fighting daisyUI for the same elements (e.g.
+   a doubled dropdown arrow on <select>, checkboxes rendering as circles). */
+@plugin '@tailwindcss/forms' {
+	strategy: class;
+}
+@plugin '@tailwindcss/typography';
+@plugin 'daisyui' {
+	themes: light --default, dark, dim, night, forest, winter, cupcake, aqua, coffee, nord;
+}
+
+@import '$lib/brand/tokens/tokens.css';
+@import '$lib/brand/components/typography.css';
+@import '$lib/brand/components/components.css';

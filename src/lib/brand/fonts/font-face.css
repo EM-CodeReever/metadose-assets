@@ -1,0 +1,56 @@
+/**
+ * metadose — Self-hosted Font Faces
+ * ─────────────────────────────────────────────────────────────────
+ * Use this file INSTEAD OF the @import in tokens.css when your app
+ * runs in a Docker container without internet access (no Google Fonts CDN).
+ *
+ * SETUP STEPS
+ * ───────────
+ * 1. Download the font files from Google Fonts (see URLs below) and
+ *    place them in this fonts/ directory alongside this CSS file.
+ *
+ * 2. In your app's root CSS (or app.css / global.css), replace:
+ *
+ *      @import 'path/to/tokens.css';
+ *
+ *    with:
+ *
+ *      @import 'path/to/fonts/font-face.css';   ← THIS file (before tokens)
+ *      @import 'path/to/tokens/tokens.css';      ← tokens (CDN import line
+ *                                                    already removed below)
+ *
+ * 3. Remove (or comment out) the first @import in tokens.css that
+ *    loads Google Fonts — that is the only change needed in tokens.css.
+ *
+ * FONT DOWNLOADS
+ * ──────────────
+ * Run the script at fonts/download-fonts.sh, OR download manually:
+ *
+ * Space Grotesk (Variable — one file covers all weights 300–700):
+ *   https://fonts.gstatic.com/s/spacegrotesk/v16/V8mDoQDjQSkFtoMM3T6r8E7mF71Q-gowFXNvNY74VHk.woff2
+ *   Save as: SpaceGrotesk-Variable.woff2
+ *
+ * JetBrains Mono (Variable — one file covers all weights):
+ *   https://fonts.gstatic.com/s/jetbrainsmono/v18/tDbY2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKxjOVmNov_l.woff2
+ *   Save as: JetBrainsMono-Variable.woff2
+ *
+ * ─────────────────────────────────────────────────────────────────
+ */
+
+/* ── Space Grotesk (variable font: 300–700) ───────────────────── */
+@font-face {
+  font-family: 'Space Grotesk';
+  src: url('./SpaceGrotesk-Variable.woff2') format('woff2-variations');
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── JetBrains Mono (variable font: 100–800) ──────────────────── */
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('./JetBrainsMono-Variable.woff2') format('woff2-variations');
+  font-weight: 100 800;
+  font-style: normal;
+  font-display: swap;
+}

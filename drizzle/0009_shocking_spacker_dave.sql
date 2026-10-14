@@ -1,0 +1,1 @@
+ALTER TABLE `object_type` ADD `barcode_field_keys` json;

@@ -1,0 +1,1 @@
+ALTER TABLE `user` ADD `auth_source` text DEFAULT ('local');

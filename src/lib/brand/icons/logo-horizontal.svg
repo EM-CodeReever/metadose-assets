@@ -1,0 +1,38 @@
+<svg width="126" height="47" viewBox="-3 -3 126 47" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="metadose-assets">
+  <title>metadose-assets</title>
+  <!--
+    metadose-assets — Horizontal lockup
+    Use on light backgrounds. For dark backgrounds, use logo-horizontal-dark.svg
+    Minimum display width: 120px
+    Clear space: half the icon height on all four sides (~14px at full size)
+  -->
+
+  <!-- Icon mark: stacked asset layers -->
+  <rect x="0" y="8" width="28" height="28" rx="7" fill="#D1DEFF"/>
+  <rect x="4" y="4" width="28" height="28" rx="7" fill="#8EB4FF"/>
+  <rect x="8" y="0" width="28" height="28" rx="7" fill="#1E6BFF"/>
+
+  <!-- Asset list lines -->
+  <rect x="14" y="7"  width="14" height="2" rx="1" fill="white" opacity="0.9"/>
+  <rect x="14" y="12" width="10" height="2" rx="1" fill="white" opacity="0.7"/>
+  <rect x="14" y="17" width="12" height="2" rx="1" fill="white" opacity="0.5"/>
+
+  <!-- Row dots -->
+  <circle cx="11" cy="8"  r="1.5" fill="white" opacity="0.9"/>
+  <circle cx="11" cy="13" r="1.5" fill="white" opacity="0.7"/>
+  <circle cx="11" cy="18" r="1.5" fill="white" opacity="0.5"/>
+
+  <!-- Wordmark -->
+  <text x="44" y="20"
+    font-family="'Space Grotesk', system-ui, sans-serif"
+    font-size="17"
+    font-weight="700"
+    fill="#0D1117"
+    letter-spacing="-0.5">metadose</text>
+  <text x="44" y="37"
+    font-family="'Space Grotesk', system-ui, sans-serif"
+    font-size="13"
+    font-weight="300"
+    fill="#1E6BFF"
+    letter-spacing="0.5">-assets</text>
+</svg>

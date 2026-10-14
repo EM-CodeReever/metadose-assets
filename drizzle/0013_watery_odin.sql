@@ -1,0 +1,2 @@
+ALTER TABLE `record` ADD `default_location_id` varchar(36);--> statement-breakpoint
+ALTER TABLE `record` ADD CONSTRAINT `record_default_location_id_location_id_fk` FOREIGN KEY (`default_location_id`) REFERENCES `location`(`id`) ON DELETE set null ON UPDATE no action;

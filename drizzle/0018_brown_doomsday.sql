@@ -1,0 +1,1 @@
+ALTER TABLE `record` ADD `requestable_override` boolean;
