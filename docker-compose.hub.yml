@@ -1,0 +1,52 @@
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-metadose_assets}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-uroot', '-p${MYSQL_ROOT_PASSWORD}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    # No `build:` here on purpose — this file never needs the Dockerfile or the source tree at
+    # all, only this one file plus an env file. It's the fix for "I copied the project to a new
+    # machine and the Dockerfile didn't make it over": use the already-published image instead.
+    image: emprocoder/metadose-assets:latest
+    pull_policy: always
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mysql://root:${MYSQL_ROOT_PASSWORD}@mysql:3306/${MYSQL_DATABASE:-metadose_assets}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      ORIGIN: ${ORIGIN}
+      UPLOADS_DIR: /data/uploads
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_SECURE: ${SMTP_SECURE:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+    ports:
+      - '${APP_PORT:-3000}:3000'
+    volumes:
+      - uploads:/data/uploads
+    healthcheck:
+      # 127.0.0.1, not localhost — Alpine resolves "localhost" to ::1 first, which the Node
+      # server (bound to 0.0.0.0, IPv4) refuses, making every healthcheck attempt fail.
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3000/api/health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  mysql-data:
+  uploads:

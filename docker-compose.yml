@@ -15,6 +15,10 @@ services:
 
   app:
     build: .
+    # Lets `docker compose up` (no --build) pull this instead of needing the Dockerfile/source
+    # at all if it's not built locally yet; `docker compose build` still builds-and-tags it from
+    # source when the Dockerfile IS present. See docker-compose.hub.yml for a build-free variant.
+    image: emprocoder/metadose-assets:latest
     restart: unless-stopped
     depends_on:
       mysql:
