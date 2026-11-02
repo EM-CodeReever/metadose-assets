@@ -61,7 +61,8 @@
 		{ href: `/o/${data.organization.slug}/manage/manufacturers`, label: 'Manufacturers' },
 		{ href: `/o/${data.organization.slug}/manage/categories`, label: 'Categories' },
 		{ href: `/o/${data.organization.slug}/manage/conditions`, label: 'Conditions' },
-		{ href: `/o/${data.organization.slug}/manage/locations`, label: 'Locations' }
+		{ href: `/o/${data.organization.slug}/manage/locations`, label: 'Locations' },
+		{ href: `/o/${data.organization.slug}/manage/eula`, label: 'EULA' }
 	]);
 
 	const bottomNavItems = $derived(

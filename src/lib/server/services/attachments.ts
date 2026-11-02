@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { attachment } from '$lib/server/db/schema';
 import { getStorage } from '$lib/server/storage';
@@ -24,6 +24,20 @@ export async function getAttachment(organizationId: string, attachmentId: string
 	return db.query.attachment.findFirst({
 		where: and(eq(attachment.organizationId, organizationId), eq(attachment.id, attachmentId))
 	});
+}
+
+/** The EULA acceptance PDFs generated for a given set of checkouts — used to give a signer a
+ *  self-service download link to their own signed copy even when their role can't see the
+ *  record's general attachments list. Returned keyed by checkout id for easy lookup. */
+export async function listEulaAttachmentsForCheckouts(
+	organizationId: string,
+	checkoutIds: string[]
+): Promise<Map<string, { id: string; fileName: string }>> {
+	if (checkoutIds.length === 0) return new Map();
+	const rows = await db.query.attachment.findMany({
+		where: and(eq(attachment.organizationId, organizationId), inArray(attachment.sourceCheckoutId, checkoutIds))
+	});
+	return new Map(rows.filter((r) => r.sourceCheckoutId).map((r) => [r.sourceCheckoutId!, { id: r.id, fileName: r.fileName }]));
 }
 
 export async function uploadAttachment(params: {
@@ -58,6 +72,47 @@ export async function uploadAttachment(params: {
 			actorUserId: params.uploadedBy,
 			action: 'attachment.added',
 			summary: params.file.name
+		});
+	});
+
+	return id;
+}
+
+/** Stores a server-generated file (currently just EULA acceptance PDFs) as a real attachment,
+ *  bypassing `uploadAttachment`'s `File`-shaped wrapper since there's no browser upload involved —
+ *  the storage backend's `put` already takes a `Buffer` directly. */
+export async function storeGeneratedPdfAttachment(params: {
+	organizationId: string;
+	recordId: string;
+	sourceCheckoutId: string;
+	fileName: string;
+	buffer: Buffer;
+	uploadedBy: string;
+	activitySummary: string;
+}): Promise<string> {
+	const id = randomUUID();
+	const storageKey = `${params.organizationId}/${params.recordId}/${id}-${sanitizeFileName(params.fileName)}`;
+
+	await getStorage().put(storageKey, params.buffer);
+
+	await db.transaction(async (tx) => {
+		await tx.insert(attachment).values({
+			id,
+			organizationId: params.organizationId,
+			recordId: params.recordId,
+			fileName: params.fileName,
+			mimeType: 'application/pdf',
+			sizeBytes: params.buffer.byteLength,
+			storageKey,
+			uploadedBy: params.uploadedBy,
+			sourceCheckoutId: params.sourceCheckoutId
+		});
+		await logActivity(tx, {
+			organizationId: params.organizationId,
+			recordId: params.recordId,
+			actorUserId: params.uploadedBy,
+			action: 'checkout.eula_recorded',
+			summary: params.activitySummary
 		});
 	});
 

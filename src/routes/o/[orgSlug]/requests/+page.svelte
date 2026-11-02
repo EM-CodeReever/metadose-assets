@@ -78,6 +78,12 @@
 								<legend class="fieldset-legend">Due back (optional)</legend>
 								<input type="date" name="dueAt" class="input input-sm w-auto" />
 							</fieldset>
+							{#if request.record.objectType.eulaEnabled}
+								<label class="label cursor-pointer gap-2">
+									<input type="checkbox" name="requiresEulaAcceptance" class="checkbox checkbox-sm" checked />
+									<span class="label-text">Require EULA acceptance</span>
+								</label>
+							{/if}
 							<fieldset class="fieldset">
 								<legend class="fieldset-legend" aria-hidden="true">&nbsp;</legend>
 								<button type="submit" class="btn btn-primary btn-sm">

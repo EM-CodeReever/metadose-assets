@@ -58,6 +58,19 @@ export const objectType = mysqlTable(
 		// Unlike trackingMode this stays editable after creation (see `requestable` for the same
 		// editable-toggle pattern).
 		allowComponentInstall: boolean('allow_component_install').default(false).notNull(),
+		// Whether checking this type out to a person can require EULA acceptance (see `eulaText`) —
+		// the per-checkout decision of whether to actually require it for a given checkout lives on
+		// `checkout.requiresEulaAcceptance`, not here; this just gates whether that option exists.
+		eulaEnabled: boolean('eula_enabled').default(false).notNull(),
+		// The agreement body shown in the acceptance modal. Plain text, nullable until an admin
+		// writes one on the Manage > EULA page.
+		eulaText: text('eula_text'),
+		// Whether records of this type can have a recurring maintenance schedule configured —
+		// only meaningful for an individually-tracked type (same eligibility as
+		// `allowComponentInstall` above). Off by default, including on the built-in Asset type.
+		// The actual interval/due-date lives per record (see `record.maintenanceIntervalDays`
+		// etc.) — this just gates whether that configuration is offered at all.
+		maintenanceEnabled: boolean('maintenance_enabled').default(false).notNull(),
 		createdBy: varchar('created_by', { length: 36 }).references(() => user.id),
 		createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
 		updatedAt: timestamp('updated_at', { fsp: 3 })

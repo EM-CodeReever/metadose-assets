@@ -1,9 +1,12 @@
 import { randomBytes } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { APIError } from 'better-auth/api';
+import { env } from '$env/dynamic/private';
 import { auth } from '$lib/server/auth';
 import { db } from '$lib/server/db';
 import { user as userTable } from '$lib/server/db/schema';
+import { sendEmail } from '$lib/server/email';
+import { renderTemplate } from '$lib/server/services/emailTemplates';
 import { addUserToOrganization, type OrgRoleName } from './members';
 
 export const MAX_IMPORT_ROWS = 2000;
@@ -30,10 +33,17 @@ export async function provisionUser(params: {
 	organizationId?: string;
 	role?: OrgRoleName;
 	authSource?: 'local' | 'ldap';
+	/** Whether a NEW account gets emailed. Independent of `authSource` — a 'local' account needs
+	 *  the "set your password" flow to be usable at all, so this defaults true there; an 'ldap'
+	 *  account doesn't need anything to sign in (its directory credentials already work), so this
+	 *  defaults false there, but an admin syncing from LDAP can opt into a "your account is
+	 *  ready" notice instead by passing `true` explicitly. */
+	sendWelcomeEmail?: boolean;
 	requestHeaders: Headers;
 	actorUserId: string;
 }): Promise<void> {
 	const authSource = params.authSource ?? 'local';
+	const sendWelcomeEmail = params.sendWelcomeEmail ?? authSource === 'local';
 	let userId: string;
 
 	const existing = await db.query.user.findFirst({ where: eq(userTable.email, params.email) });
@@ -47,17 +57,37 @@ export async function provisionUser(params: {
 	} else {
 		const created = await auth.api.createUser({
 			headers: params.requestHeaders,
-			body: { name: params.name, email: params.email, password: generateTempPassword(), role: 'user', data: { authSource } }
+			body: {
+				name: params.name,
+				email: params.email,
+				password: generateTempPassword(),
+				role: 'user',
+				// Not a public signup — this address came from a CSV an admin curated, or straight
+				// from the directory itself for an LDAP sync. There's no "did a stranger typo
+				// someone else's address" risk here for email verification to guard against, so
+				// there's deliberately no verification email/flow in this app at all; leaving this
+				// false would just be a permanent, unresolvable "not verified" badge.
+				data: { authSource, emailVerified: true }
+			}
 		});
 		userId = created.user.id;
 
-		if (authSource === 'local') {
-			// Fire-and-forget: reuses better-auth's own forgot-password flow (same endpoint the
-			// public /forgot-password page calls) so the new user gets a real "set your password"
-			// email — degrades to a console log, not an error, when SMTP isn't configured yet. An
-			// 'ldap' account skips this: its local password is never meaningful on its own, only
-			// ever a mirror of whatever they just typed at their last successful LDAP sign-in.
-			await auth.api.requestPasswordReset({ body: { email: params.email, redirectTo: '/reset-password' } });
+		if (sendWelcomeEmail) {
+			if (authSource === 'local') {
+				// Fire-and-forget: reuses better-auth's own forgot-password flow (same endpoint the
+				// public /forgot-password page calls) so the new user gets a real "set your password"
+				// email — degrades to a console log, not an error, when SMTP isn't configured yet.
+				await auth.api.requestPasswordReset({ body: { email: params.email, redirectTo: '/reset-password' } });
+			} else {
+				// An LDAP account's local password is never meaningful on its own (just a mirror of
+				// whatever it last verified against the directory), so a reset-password link makes no
+				// sense here — just point them at sign-in with their existing directory credentials.
+				const { subject, html } = await renderTemplate('ldap_welcome', {
+					name: params.name,
+					loginUrl: `${env.ORIGIN ?? ''}/login`
+				});
+				await sendEmail({ to: params.email, subject, html });
+			}
 		}
 	}
 
@@ -71,6 +101,7 @@ export async function importUsers(params: {
 	organizationId?: string;
 	role?: OrgRoleName;
 	authSource?: 'local' | 'ldap';
+	sendWelcomeEmail?: boolean;
 	requestHeaders: Headers;
 	actorUserId: string;
 }): Promise<{ results: ImportRowResult[]; created: number; failed: number }> {
@@ -98,6 +129,7 @@ export async function importUsers(params: {
 				organizationId: params.organizationId,
 				role: params.role,
 				authSource: params.authSource,
+				sendWelcomeEmail: params.sendWelcomeEmail,
 				requestHeaders: params.requestHeaders,
 				actorUserId: params.actorUserId
 			});

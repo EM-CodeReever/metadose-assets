@@ -25,6 +25,7 @@
 	const isIndividualCustomType = $derived(
 		data.objectType.builtinKind === 'custom' && data.objectType.trackingMode === 'individual'
 	);
+	const isIndividuallyTracked = $derived(data.objectType.builtinKind === 'asset' || isIndividualCustomType);
 	const numberFieldOptions = $derived(data.objectType.fields.filter((f) => f.dataType === 'number'));
 
 	function toggleLabelKey(key: string, checked: boolean) {
@@ -101,7 +102,16 @@
 	<section class="card bg-base-100 shadow">
 		<div class="card-body">
 			<h2 class="card-title text-base">Settings</h2>
-			<form method="post" action="?/updateSettings" use:enhance class="mt-2 space-y-4">
+			<form
+				method="post"
+				action="?/updateSettings"
+				use:enhance={() => {
+					return async ({ update }) => {
+						await update({ reset: false });
+					};
+				}}
+				class="mt-2 space-y-4"
+			>
 				<fieldset class="fieldset">
 					<legend class="fieldset-legend">Name</legend>
 					<input name="name" required value={data.objectType.name} class="input w-full" />
@@ -182,31 +192,47 @@
 					</fieldset>
 				{/if}
 
-				{#if isIndividualCustomType}
-					<label class="label cursor-pointer justify-start gap-2">
-						<input
-							type="checkbox"
-							name="allowComponentInstall"
-							class="checkbox checkbox-sm"
-							checked={data.objectType.allowComponentInstall}
-						/>
-						<span class="label-text">Components can be installed into records of this type</span>
-					</label>
-				{/if}
+				<div class="flex flex-col gap-2">
+					{#if isIndividualCustomType}
+						<label class="label cursor-pointer justify-start gap-2">
+							<input
+								type="checkbox"
+								name="allowComponentInstall"
+								class="checkbox checkbox-sm"
+								checked={data.objectType.allowComponentInstall}
+							/>
+							<span class="label-text">Components can be installed into records of this type</span>
+						</label>
+					{/if}
 
-				{#if data.objectType.builtinKind !== 'component'}
-					<label class="label cursor-pointer justify-start gap-2">
-						<input
-							type="checkbox"
-							name="requestable"
-							class="checkbox checkbox-sm"
-							checked={data.objectType.requestable}
-						/>
-						<span class="label-text">Members can request items of this type</span>
-					</label>
-				{/if}
+					{#if data.objectType.builtinKind !== 'component'}
+						<label class="label cursor-pointer justify-start gap-2">
+							<input
+								type="checkbox"
+								name="requestable"
+								class="checkbox checkbox-sm"
+								checked={data.objectType.requestable}
+							/>
+							<span class="label-text">Members can request items of this type</span>
+						</label>
+					{/if}
 
+					{#if isIndividuallyTracked}
+						<label class="label cursor-pointer justify-start gap-2">
+							<input
+								type="checkbox"
+								name="maintenanceEnabled"
+								class="checkbox checkbox-sm"
+								checked={data.objectType.maintenanceEnabled}
+							/>
+							<span class="label-text">Records of this type can have a maintenance schedule</span>
+						</label>
+					{/if}
+				</div>
+
+				<div class="flex justify-end">
 					<button type="submit" class="btn btn-primary btn-sm">Save</button>
+				</div>
 				</form>
 				{#if data.objectType.builtinKind === 'custom'}
 					<div class="border-base-300 mt-4 flex items-center justify-between border-t pt-4">

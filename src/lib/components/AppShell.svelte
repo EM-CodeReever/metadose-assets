@@ -21,6 +21,7 @@
 		userBadge,
 		extraNav,
 		bottomNavItems = [],
+		sidebarFooter,
 		children
 	}: {
 		navItems: NavItem[];
@@ -30,6 +31,9 @@
 		userBadge?: Snippet;
 		extraNav?: Snippet;
 		bottomNavItems?: NavItem[];
+		/** Rendered at the very bottom of the sidebar, below any bottomNavItems — e.g. a version
+		 *  footer. Omit for shells that don't need one (it doesn't show up unless passed). */
+		sidebarFooter?: Snippet;
 		children: Snippet;
 	} = $props();
 
@@ -90,6 +94,7 @@
 				{/each}
 			</ul>
 		{/if}
+		{@render sidebarFooter?.()}
 	</aside>
 
 	<div class="flex h-full min-w-0 flex-1 flex-col overflow-hidden">

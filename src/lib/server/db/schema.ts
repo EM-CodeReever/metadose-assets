@@ -6,6 +6,8 @@ export * from './checkout.schema';
 export * from './checkoutRequest.schema';
 export * from './activity.schema';
 export * from './attachment.schema';
+export * from './maintenanceCheck.schema';
 export * from './report.schema';
 export * from './lookup.schema';
 export * from './settings.schema';
+export * from './emailTemplate.schema';

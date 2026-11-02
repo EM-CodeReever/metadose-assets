@@ -1,6 +1,20 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { Ban, KeyRound, Mail, Network, Search, ShieldCheck, Trash2, Upload, User as UserIcon, UserPlus } from '@lucide/svelte';
+	import {
+		Ban,
+		ChevronDown,
+		CircleX,
+		KeyRound,
+		Mail,
+		Network,
+		Search,
+		ShieldCheck,
+		Trash2,
+		Upload,
+		User as UserIcon,
+		UserPlus
+	} from '@lucide/svelte';
+	import Pagination from '$lib/components/Pagination.svelte';
 	import type { ActionData, PageServerData } from './$types';
 
 	let { data, form }: { data: PageServerData; form: ActionData } = $props();
@@ -10,10 +24,33 @@
 	let dialog: HTMLDialogElement;
 	let banDialog: HTMLDialogElement;
 	let deleteDialog: HTMLDialogElement;
+	let bulkBanDialog: HTMLDialogElement;
+	let bulkDeleteDialog: HTMLDialogElement;
 	let banTarget = $state<User | null>(null);
 	let deleteTarget = $state<User | null>(null);
 	let searchQuery = $state('');
 	let roleFilter = $state<'all' | 'super_admin' | 'user'>('all');
+
+	let selectedIds = $state<Set<string>>(new Set());
+	let bulkSubmitting = $state(false);
+
+	/** Sets the `indeterminate` DOM property — there's no `bind:indeterminate` in Svelte since it
+	 *  isn't a real HTML attribute, just a runtime property the checkbox element exposes. */
+	function indeterminate(node: HTMLInputElement, value: boolean) {
+		node.indeterminate = value;
+		return { update: (v: boolean) => (node.indeterminate = v) };
+	}
+
+	function toggleOne(id: string, checked: boolean) {
+		const next = new Set(selectedIds);
+		if (checked) next.add(id);
+		else next.delete(id);
+		selectedIds = next;
+	}
+
+	function toggleSelectAll(checked: boolean) {
+		selectedIds = checked ? new Set(filteredUsers.map((u) => u.id)) : new Set();
+	}
 
 	let accountType = $state<'user' | 'admin'>('user');
 	let credentialMethod = $state<'password' | 'email_link'>('password');
@@ -48,11 +85,35 @@
 		})
 	);
 
+	const allSelected = $derived(filteredUsers.length > 0 && filteredUsers.every((u) => selectedIds.has(u.id)));
+	const someSelected = $derived(selectedIds.size > 0 && !allSelected);
+	const selectedUsers = $derived(data.users.filter((u) => selectedIds.has(u.id)));
+	const selectedIdsJson = $derived(JSON.stringify([...selectedIds]));
+
+	let page = $state(1);
+	const paginatedUsers = $derived(filteredUsers.slice((page - 1) * 25, page * 25));
+	$effect(() => {
+		filteredUsers;
+		page = 1;
+	});
+
+	function openBulkBanDialog() {
+		bulkBanDialog.showModal();
+	}
+	function openBulkDeleteDialog() {
+		bulkDeleteDialog.showModal();
+	}
+
 	$effect(() => {
 		if (form?.success) {
 			dialog?.close();
 			banDialog?.close();
 			deleteDialog?.close();
+			if (form?.bulkAction) {
+				bulkBanDialog?.close();
+				bulkDeleteDialog?.close();
+				selectedIds = new Set();
+			}
 		}
 	});
 </script>
@@ -61,17 +122,31 @@
 	<div class="flex items-center justify-between">
 		<div>
 			<h1 class="text-lg font-semibold">Users</h1>
-			<p class="text-base-content/60 text-sm">
+			<p class="text-base-content/60 max-w-md text-sm">
 				There is no self-service sign-up — accounts are created here. Asset/checkout history lives
 				in each organization's own Users page, not here.
 			</p>
 		</div>
-		<div class="flex gap-2">
-			<a href="/admin/users/import" class="btn btn-outline">
-				<Upload size={16} />
-				Bulk import
-			</a>
-			<button class="btn btn-primary" onclick={openCreateDialog}>
+		<div class="flex shrink-0 gap-2">
+			{#if data.ldapEnabled}
+				<details class="dropdown">
+					<summary class="btn btn-outline whitespace-nowrap">
+						<Upload size={16} />
+						Bulk import
+						<ChevronDown size={14} />
+					</summary>
+					<ul class="dropdown-content menu bg-base-100 rounded-box z-10 w-52 p-2 shadow">
+						<li><a href="/admin/users/import">Import from CSV</a></li>
+						<li><a href="/admin/settings/ldap/sync">LDAP sync</a></li>
+					</ul>
+				</details>
+			{:else}
+				<a href="/admin/users/import" class="btn btn-outline whitespace-nowrap">
+					<Upload size={16} />
+					Bulk import
+				</a>
+			{/if}
+			<button class="btn btn-primary whitespace-nowrap" onclick={openCreateDialog}>
 				<UserPlus size={16} />
 				New user
 			</button>
@@ -92,6 +167,42 @@
 			{filteredUsers.length} of {data.users.length}
 		</span>
 	</div>
+
+	{#if selectedIds.size > 0}
+		<div class="bg-base-200 flex items-center gap-3 rounded-lg px-4 py-2">
+			<span class="text-sm font-medium">{selectedIds.size} selected</span>
+			<button type="button" class="btn btn-ghost btn-xs text-error" onclick={openBulkBanDialog}>
+				<Ban size={13} />
+				Ban selected
+			</button>
+			<button type="button" class="btn btn-ghost btn-xs text-error" onclick={openBulkDeleteDialog}>
+				<Trash2 size={13} />
+				Delete selected
+			</button>
+			<button type="button" class="btn btn-ghost btn-xs ml-auto" onclick={() => (selectedIds = new Set())}>
+				Clear
+			</button>
+		</div>
+	{/if}
+
+	{#if form?.bulkAction}
+		<div class="alert {form.failed > 0 ? 'alert-warning' : 'alert-success'} text-sm">
+			<span>
+				{form.succeeded} user{form.succeeded === 1 ? '' : 's'} {form.bulkAction === 'ban' ? 'banned' : 'deleted'}.
+				{#if form.failed > 0}{form.failed} failed.{/if}
+			</span>
+		</div>
+		{#if form.errors?.length > 0}
+			<ul class="divide-base-300 divide-y text-sm">
+				{#each form.errors as err (err.userId)}
+					<li class="flex items-start gap-2 py-2">
+						<CircleX size={14} class="text-error mt-0.5 shrink-0" />
+						<span>{err.name ?? err.userId}: {err.message}</span>
+					</li>
+				{/each}
+			</ul>
+		{/if}
+	{/if}
 
 	{#if form?.message}
 		<div class="alert alert-error text-sm"><span>{form.message}</span></div>
@@ -122,6 +233,15 @@
 			<table class="table">
 				<thead>
 					<tr>
+						<th class="w-8">
+							<input
+								type="checkbox"
+								class="checkbox checkbox-sm"
+								checked={allSelected}
+								use:indeterminate={someSelected}
+								onchange={(e) => toggleSelectAll(e.currentTarget.checked)}
+							/>
+						</th>
 						<th>User</th>
 						<th>Organizations</th>
 						<th>Auth</th>
@@ -130,8 +250,16 @@
 					</tr>
 				</thead>
 				<tbody>
-					{#each filteredUsers as u (u.id)}
+					{#each paginatedUsers as u (u.id)}
 						<tr class="hover">
+							<td>
+								<input
+									type="checkbox"
+									class="checkbox checkbox-sm"
+									checked={selectedIds.has(u.id)}
+									onchange={(e) => toggleOne(u.id, e.currentTarget.checked)}
+								/>
+							</td>
 							<td>
 								<p class="font-medium">{u.name}</p>
 								<p class="text-base-content/60 text-sm">{u.email}</p>
@@ -213,10 +341,13 @@
 							</td>
 						</tr>
 					{:else}
-						<tr><td colspan="5" class="text-base-content/60">No users match your filters.</td></tr>
+						<tr><td colspan="6" class="text-base-content/60">No users match your filters.</td></tr>
 					{/each}
 				</tbody>
 			</table>
+		</div>
+		<div class="card-body py-3">
+			<Pagination bind:page totalItems={filteredUsers.length} />
 		</div>
 	</div>
 </div>
@@ -377,6 +508,96 @@
 				<button type="submit" class="btn btn-error">
 					<Trash2 size={14} />
 					Delete
+				</button>
+			</div>
+		</form>
+	</div>
+	<form method="dialog" class="modal-backdrop">
+		<button>close</button>
+	</form>
+</dialog>
+
+<dialog bind:this={bulkBanDialog} class="modal">
+	<div class="modal-box">
+		<h3 class="text-lg font-semibold">Ban {selectedUsers.length} user{selectedUsers.length === 1 ? '' : 's'}?</h3>
+		<p class="text-base-content/60 mt-2 text-sm">They'll be signed out and unable to sign back in until unbanned.</p>
+		<ul class="mt-3 max-h-48 space-y-1 overflow-y-auto text-sm">
+			{#each selectedUsers as u (u.id)}
+				<li class="text-base-content/70">{u.name} <span class="text-base-content/40">({u.email})</span></li>
+			{/each}
+		</ul>
+
+		<form
+			method="post"
+			action="?/bulkBan"
+			use:enhance={() => {
+				bulkSubmitting = true;
+				return async ({ update }) => {
+					await update();
+					bulkSubmitting = false;
+				};
+			}}
+			class="mt-4"
+		>
+			<input type="hidden" name="userIds" value={selectedIdsJson} />
+			<div class="modal-action">
+				<button type="button" class="btn" disabled={bulkSubmitting} onclick={() => bulkBanDialog.close()}>Cancel</button>
+				<button type="submit" class="btn btn-error" disabled={bulkSubmitting}>
+					{#if bulkSubmitting}
+						<span class="loading loading-spinner loading-sm"></span>
+						Banning...
+					{:else}
+						<Ban size={14} />
+						Ban {selectedUsers.length}
+					{/if}
+				</button>
+			</div>
+		</form>
+	</div>
+	<form method="dialog" class="modal-backdrop">
+		<button>close</button>
+	</form>
+</dialog>
+
+<dialog bind:this={bulkDeleteDialog} class="modal">
+	<div class="modal-box">
+		<h3 class="text-lg font-semibold">Delete {selectedUsers.length} user{selectedUsers.length === 1 ? '' : 's'}?</h3>
+		<p class="text-base-content/60 mt-2 text-sm">
+			Each account is deleted outright if it has no history anywhere, or anonymized (name/email
+			scrubbed, access revoked, removed from every organization) if it does — same rule as a
+			single delete, applied per account. This can't be undone.
+		</p>
+		<ul class="mt-3 max-h-48 space-y-1 overflow-y-auto text-sm">
+			{#each selectedUsers as u (u.id)}
+				<li class="text-base-content/70">{u.name} <span class="text-base-content/40">({u.email})</span></li>
+			{/each}
+		</ul>
+
+		<form
+			method="post"
+			action="?/bulkDelete"
+			use:enhance={() => {
+				bulkSubmitting = true;
+				return async ({ update }) => {
+					await update();
+					bulkSubmitting = false;
+				};
+			}}
+			class="mt-4"
+		>
+			<input type="hidden" name="userIds" value={selectedIdsJson} />
+			<div class="modal-action">
+				<button type="button" class="btn" disabled={bulkSubmitting} onclick={() => bulkDeleteDialog.close()}>
+					Cancel
+				</button>
+				<button type="submit" class="btn btn-error" disabled={bulkSubmitting}>
+					{#if bulkSubmitting}
+						<span class="loading loading-spinner loading-sm"></span>
+						Deleting...
+					{:else}
+						<Trash2 size={14} />
+						Delete {selectedUsers.length}
+					{/if}
 				</button>
 			</div>
 		</form>

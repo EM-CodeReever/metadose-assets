@@ -1,5 +1,5 @@
 import { relations } from 'drizzle-orm';
-import { mysqlTable, varchar, text, int, timestamp, mysqlEnum, index } from 'drizzle-orm/mysql-core';
+import { mysqlTable, varchar, text, int, boolean, timestamp, mysqlEnum, index } from 'drizzle-orm/mysql-core';
 import { organization, user } from './auth.schema';
 import { record } from './record.schema';
 import { location } from './location.schema';
@@ -31,6 +31,13 @@ export const checkout = mysqlTable(
 		// The assignee's own one-click "I received this" acknowledgment — distinct from
 		// checkedInAt, which is when it comes back, not when it was first handed over.
 		acceptedAt: timestamp('accepted_at', { fsp: 3 }),
+		// Decided once, when this checkout is created, from whoever checked it out/approved it
+		// choosing whether to require it (only offered when the object type has a EULA defined) —
+		// fixed for the life of the checkout, same as assignedToType.
+		requiresEulaAcceptance: boolean('requires_eula_acceptance').default(false).notNull(),
+		// Exactly what the assignee typed to confirm, kept as its own audit trail distinct from
+		// their live user.name (which could change later). Null unless requiresEulaAcceptance was set.
+		eulaAcceptedName: varchar('eula_accepted_name', { length: 255 }),
 		notes: text('notes'),
 		createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
 		updatedAt: timestamp('updated_at', { fsp: 3 })

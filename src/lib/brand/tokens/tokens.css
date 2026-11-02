@@ -12,10 +12,13 @@
  * colour — including text colour — always tracks whichever theme is active, instead
  * of fighting it with a second, theme-blind palette.
  * ─────────────────────────────────────────────────────────────────
+ *
+ * The Google Fonts @import this file used to carry now lives at the very top of
+ * src/routes/layout.css instead — CSS requires every @import in a stylesheet to come before any
+ * other rule, and this file's own content (a plain :root block) would otherwise land ahead of it
+ * once Vite inlines this import into layout.css, which is exactly the "must precede all other
+ * statements" PostCSS warning this avoids.
  */
-
-/* ── Fonts ───────────────────────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap');
 
 :root {
   color-scheme: light dark;

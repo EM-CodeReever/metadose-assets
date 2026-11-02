@@ -4,6 +4,8 @@
 	import type { ActionData, PageServerData } from './$types';
 
 	let { data, form }: { data: PageServerData; form: ActionData } = $props();
+
+	let sendingTest = $state(false);
 </script>
 
 <div class="mx-auto max-w-6xl space-y-6 2xl:max-w-[1600px]">
@@ -52,23 +54,29 @@
 							<p class="text-base-content/50 text-xs">Leave blank to keep the saved password.</p>
 						{/if}
 					</fieldset>
-					<label class="label cursor-pointer justify-start gap-2">
-						<input type="checkbox" name="secure" class="checkbox checkbox-sm" checked={data.smtp.secure} />
-						<span class="label-text">Use TLS (usually for port 465)</span>
-					</label>
+					<div class="block">
+						<label class="label cursor-pointer justify-start gap-2">
+							<input type="checkbox" name="secure" class="checkbox checkbox-sm" checked={data.smtp.secure} />
+							<span class="label-text">Use TLS (usually for port 465)</span>
+						</label>
+					</div>
 
-					{#if form?.message && !form?.tested}
-						<div class="alert alert-error text-sm">
-							<span>{form.message}</span>
-						</div>
-					{/if}
-					{#if form?.success && !form?.tested}
-						<div class="alert alert-success text-sm">
-							<span>Saved.</span>
-						</div>
-					{/if}
+					<div class="block">
+						{#if form?.message && !form?.tested}
+							<div class="alert alert-error text-sm">
+								<span>{form.message}</span>
+							</div>
+						{/if}
+						{#if form?.success && !form?.tested}
+							<div class="alert alert-success text-sm">
+								<span>Saved.</span>
+							</div>
+						{/if}
+					</div>
 
-					<button type="submit" class="btn btn-primary">Save</button>
+					<div class="flex justify-end pt-2">
+						<button type="submit" class="btn btn-primary">Save</button>
+					</div>
 				</form>
 			</div>
 		</div>
@@ -76,14 +84,30 @@
 		<div class="card bg-base-100 shadow">
 			<div class="card-body space-y-4">
 				<h2 class="card-title text-base">Send a test email</h2>
-				<form method="post" action="?/test" use:enhance class="space-y-4">
+				<form
+					method="post"
+					action="?/test"
+					use:enhance={() => {
+						sendingTest = true;
+						return async ({ update }) => {
+							await update();
+							sendingTest = false;
+						};
+					}}
+					class="space-y-4"
+				>
 					<fieldset class="fieldset">
 						<legend class="fieldset-legend">To</legend>
 						<input name="testEmail" type="email" placeholder="you@example.com" class="input w-full" />
 					</fieldset>
-					<button type="submit" class="btn btn-outline btn-sm w-full">
-						<Send size={14} />
-						Send test
+					<button type="submit" class="btn btn-outline btn-sm w-full" disabled={sendingTest}>
+						{#if sendingTest}
+							<span class="loading loading-spinner loading-xs"></span>
+							Sending...
+						{:else}
+							<Send size={14} />
+							Send test
+						{/if}
 					</button>
 				</form>
 				{#if form?.tested}

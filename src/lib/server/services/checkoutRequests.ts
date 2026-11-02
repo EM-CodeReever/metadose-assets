@@ -110,7 +110,7 @@ export async function approveCheckoutRequest(
 	organizationId: string,
 	requestId: string,
 	actorUserId: string,
-	params: { assignedToLocationId?: string; quantity?: number; dueAt?: Date }
+	params: { assignedToLocationId?: string; quantity?: number; dueAt?: Date; requiresEulaAcceptance?: boolean }
 ): Promise<void> {
 	const request = await getPendingRequest(organizationId, requestId);
 
@@ -122,7 +122,8 @@ export async function approveCheckoutRequest(
 		assignedToLocationId: params.assignedToLocationId,
 		quantity: params.quantity,
 		dueAt: params.dueAt,
-		checkedOutBy: actorUserId
+		checkedOutBy: actorUserId,
+		requiresEulaAcceptance: params.requiresEulaAcceptance
 	});
 
 	// checkoutRecord doesn't return the row it inserted, so the just-created open checkout for

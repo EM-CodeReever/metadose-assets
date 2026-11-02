@@ -1,3 +1,6 @@
+/* Must come before every other statement, including the tailwindcss import below — CSS requires
+   all @import rules to precede any other rule in the stylesheet. */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap');
 @import 'tailwindcss';
 /* 'class' strategy: this app styles every form control through daisyUI's own .select/.checkbox/
    etc. classes, never Tailwind Forms' own utility classes — but Forms' default 'base' strategy

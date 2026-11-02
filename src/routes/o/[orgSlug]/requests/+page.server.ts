@@ -30,6 +30,7 @@ export const actions: Actions = {
 		const assignedToLocationId = formData.get('assignedToLocationId')?.toString() || undefined;
 		const quantityRaw = formData.get('quantity')?.toString();
 		const dueAtRaw = formData.get('dueAt')?.toString();
+		const requiresEulaAcceptance = formData.get('requiresEulaAcceptance') === 'on';
 		if (!requestId) return fail(400, { message: 'Missing request' });
 
 		let dueAt: Date | undefined;
@@ -42,7 +43,8 @@ export const actions: Actions = {
 			await approveCheckoutRequest(orgMembership.organization.id, requestId, user.id, {
 				assignedToLocationId,
 				quantity: quantityRaw ? Number(quantityRaw) : undefined,
-				dueAt
+				dueAt,
+				requiresEulaAcceptance
 			});
 		} catch (err) {
 			return fail(400, { message: err instanceof Error ? err.message : 'Could not approve request' });

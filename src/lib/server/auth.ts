@@ -8,6 +8,7 @@ import { getRequestEvent } from '$app/server';
 import { db } from '$lib/server/db';
 import { orgAc, orgRoles, siteAc, siteRoles } from '$lib/server/permissions';
 import { sendEmail } from '$lib/server/email';
+import { renderTemplate } from '$lib/server/services/emailTemplates';
 
 export const auth = betterAuth({
 	baseURL: env.ORIGIN,
@@ -18,11 +19,8 @@ export const auth = betterAuth({
 		enabled: true,
 		disableSignUp: true,
 		sendResetPassword: async ({ user, url }) => {
-			await sendEmail({
-				to: user.email,
-				subject: 'Reset your password',
-				html: `<p>Someone requested a password reset for your account.</p><p><a href="${url}">Click here to reset your password</a></p><p>If you didn't request this, you can ignore this email.</p>`
-			});
+			const { subject, html } = await renderTemplate('password_reset', { url });
+			await sendEmail({ to: user.email, subject, html });
 		}
 	},
 	user: {
@@ -62,7 +60,17 @@ export const auth = betterAuth({
 			creatorRole: 'owner',
 			teams: { enabled: false },
 			// Organizations are provisioned by instance super-admins, not created by end users.
-			allowUserToCreateOrganization: (user) => user.role === 'super_admin'
+			allowUserToCreateOrganization: (user) => user.role === 'super_admin',
+			// No real cap on how many people belong to one organization — an instance's scale
+			// is a matter of whatever infrastructure it's run on, not something this app should
+			// silently limit. better-auth defaults this to 100 and enforces it on every
+			// add-member path (including CSV/LDAP bulk sync, which can hand it far more than
+			// that in one batch), so it has to be raised explicitly rather than left unset.
+			// Kept as a large finite number rather than Infinity — this same value also doubles
+			// as the default page size for better-auth's own member-listing endpoint (unused
+			// here, but Infinity isn't a valid SQL LIMIT if anything ever calls it), so a
+			// million is effectively uncapped without risking that.
+			membershipLimit: 1_000_000
 		}),
 		sveltekitCookies(getRequestEvent) // make sure this is the last plugin in the array
 	]

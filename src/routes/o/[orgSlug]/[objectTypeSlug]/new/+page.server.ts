@@ -113,7 +113,8 @@ export const actions: Actions = {
 				assignedToType: 'user',
 				assignedToUserId,
 				assignedToLocationId,
-				checkedOutBy: user.id
+				checkedOutBy: user.id,
+				requiresEulaAcceptance: objectType.eulaEnabled
 			});
 		} else if (assignMode === 'location' && assignedToLocationId) {
 			await checkoutRecord({

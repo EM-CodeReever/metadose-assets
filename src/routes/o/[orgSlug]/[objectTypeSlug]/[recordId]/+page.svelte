@@ -23,12 +23,14 @@
 		TriangleAlert,
 		Trash,
 		Upload,
+		Wrench,
 		X
 	} from '@lucide/svelte';
 	import { recordStatusBadgeClass } from '$lib/badgeStyles';
 	import { formatDateTime } from '$lib/dateFormat';
 	import UserAssignSelect from '$lib/components/UserAssignSelect.svelte';
 	import LocationSelect from '$lib/components/LocationSelect.svelte';
+	import EulaAcceptModal from '$lib/components/EulaAcceptModal.svelte';
 	import type { ActionData, PageServerData } from './$types';
 
 	let { data, form }: { data: PageServerData; form: ActionData } = $props();
@@ -38,6 +40,9 @@
 	let stockDialog: HTMLDialogElement;
 	let checkoutError = $state('');
 	let stockError = $state('');
+
+	let eulaModalOpen = $state(false);
+	let eulaModalCheckoutId = $state('');
 	let imageError = $state('');
 	let assetAssignedToType = $state<'user' | 'location'>('user');
 
@@ -68,6 +73,26 @@
 			: undefined
 	);
 	const isOutOfServiceCondition = $derived(currentCondition?.outOfService ?? false);
+
+	let maintenanceDialog: HTMLDialogElement;
+	let maintenanceError = $state('');
+	// Reset to the record's current condition every time the dialog opens (see
+	// openMaintenanceDialog) — this initial value is just a harmless placeholder before that.
+	let maintenanceConditionId = $state('');
+	const maintenanceDueStatus = $derived.by(() => {
+		if (!data.record.maintenanceDueAt) return null;
+		const due = new Date(data.record.maintenanceDueAt);
+		const now = new Date();
+		if (due.getTime() < now.getTime()) return 'overdue';
+		if (due.getTime() - now.getTime() < 7 * 24 * 60 * 60 * 1000) return 'upcoming';
+		return 'scheduled';
+	});
+
+	function openMaintenanceDialog() {
+		maintenanceConditionId = conditionField ? (currentCondition?.id ?? '') : '';
+		maintenanceError = '';
+		maintenanceDialog.showModal();
+	}
 
 	let splitDialog: HTMLDialogElement;
 	let splitTarget = $state<(typeof data.openCheckouts)[number] | null>(null);
@@ -155,7 +180,10 @@
 		'record.request_rejected': 'Request rejected',
 		'record.request_cancelled': 'Request cancelled',
 		'attachment.added': 'Attachment added',
-		'attachment.removed': 'Attachment removed'
+		'attachment.removed': 'Attachment removed',
+		'checkout.eula_recorded': 'EULA acceptance recorded',
+		'record.maintenance_scheduled': 'Maintenance scheduled',
+		'record.maintenance_checked': 'Maintenance check performed'
 	};
 </script>
 
@@ -366,13 +394,37 @@
 									</div>
 									<div class="flex items-center gap-2">
 										{#if c.assignedToUserId === data.user.id && !c.acceptedAt}
-											<form method="post" action="?/accept" use:enhance>
-												<input type="hidden" name="checkoutId" value={c.id} />
-												<button type="submit" class="btn btn-success btn-sm">
+											{#if c.requiresEulaAcceptance}
+												<button
+													type="button"
+													class="btn btn-success btn-sm"
+													onclick={() => {
+														eulaModalCheckoutId = c.id;
+														eulaModalOpen = true;
+													}}
+												>
 													<PackageCheck size={14} />
 													Confirm receipt
 												</button>
-											</form>
+											{:else}
+												<form method="post" action="?/accept" use:enhance>
+													<input type="hidden" name="checkoutId" value={c.id} />
+													<button type="submit" class="btn btn-success btn-sm">
+														<PackageCheck size={14} />
+														Confirm receipt
+													</button>
+												</form>
+											{/if}
+										{/if}
+										{#if c.assignedToUserId === data.user.id && data.myEulaAttachments[c.id]}
+											<a
+												href={`/o/${data.organization.slug}/${data.objectType.slug}/${data.record.id}/attachments/${data.myEulaAttachments[c.id].id}`}
+												data-sveltekit-reload
+												class="btn btn-ghost btn-sm"
+											>
+												<Download size={14} />
+												Your signed agreement
+											</a>
 										{/if}
 										{#if !isMember && c.assignedToUserId && !c.acceptedAt}
 											<form method="post" action="?/sendReminder" use:enhance>
@@ -456,6 +508,95 @@
 					</dl>
 				</div>
 			</div>
+
+			{#if data.objectType.maintenanceEnabled}
+				<div class="card bg-base-100 shadow">
+					<div class="card-body">
+						<div class="flex items-center justify-between">
+							<h2 class="card-title text-base">
+								<Wrench size={16} />
+								Maintenance
+							</h2>
+							{#if maintenanceDueStatus}
+								<span
+									class="badge badge-sm {maintenanceDueStatus === 'overdue'
+										? 'badge-error'
+										: maintenanceDueStatus === 'upcoming'
+											? 'badge-warning'
+											: 'badge-ghost'}"
+								>
+									{maintenanceDueStatus === 'overdue' ? 'Overdue' : maintenanceDueStatus === 'upcoming' ? 'Due soon' : 'Scheduled'}
+								</span>
+							{/if}
+						</div>
+
+						{#if data.record.maintenanceIntervalDays}
+							<p class="text-base-content/60 text-sm">
+								Checked every {data.record.maintenanceIntervalDays} day{data.record.maintenanceIntervalDays === 1
+									? ''
+									: 's'}. Next due {formatDate(data.record.maintenanceDueAt)}.
+								{#if data.record.lastMaintenanceAt}
+									Last checked {formatDate(data.record.lastMaintenanceAt)}.
+								{/if}
+							</p>
+						{:else}
+							<p class="text-base-content/60 text-sm">No maintenance schedule set for this record yet.</p>
+						{/if}
+
+						{#if data.canViewAuditInfo}
+							<div class="mt-2 flex flex-wrap items-end gap-4">
+								<form method="post" action="?/setMaintenanceSchedule" use:enhance class="flex items-end gap-2">
+									<fieldset class="fieldset">
+										<legend class="fieldset-legend">Check every (days)</legend>
+										<input
+											type="number"
+											name="intervalDays"
+											min="1"
+											value={data.record.maintenanceIntervalDays ?? ''}
+											class="input input-sm w-28"
+										/>
+									</fieldset>
+									<fieldset class="fieldset">
+										<legend class="fieldset-legend" aria-hidden="true">&nbsp;</legend>
+										<button type="submit" class="btn btn-outline btn-sm">Save</button>
+									</fieldset>
+								</form>
+								<fieldset class="fieldset">
+									<legend class="fieldset-legend" aria-hidden="true">&nbsp;</legend>
+									<button type="button" class="btn btn-primary btn-sm" onclick={openMaintenanceDialog}>
+										<Wrench size={14} />
+										Perform maintenance check
+									</button>
+								</fieldset>
+								{#if data.record.maintenanceIntervalDays}
+									<fieldset class="fieldset">
+										<legend class="fieldset-legend" aria-hidden="true">&nbsp;</legend>
+										<form method="post" action="?/setMaintenanceSchedule" use:enhance>
+											<input type="hidden" name="intervalDays" value="" />
+											<button type="submit" class="btn btn-ghost btn-sm text-error">Remove schedule</button>
+										</form>
+									</fieldset>
+								{/if}
+							</div>
+						{/if}
+
+						{#if data.maintenanceChecks.length > 0}
+							<ul class="divide-base-300 mt-3 divide-y">
+								{#each data.maintenanceChecks as check (check.id)}
+									<li class="py-2 text-sm">
+										<p class="font-medium">
+											{formatDate(check.performedAt)}
+											{#if check.performedByUser}<span class="text-base-content/60"> · {check.performedByUser.name}</span>{/if}
+											{#if check.condition}<span class="text-base-content/60"> · set to {check.condition.name}</span>{/if}
+										</p>
+										<p class="text-base-content/70">{check.note}</p>
+									</li>
+								{/each}
+							</ul>
+						{/if}
+					</div>
+				</div>
+			{/if}
 
 			{#if data.canHoldComponents}
 				<div class="card bg-base-100 shadow">
@@ -548,83 +689,85 @@
 				<p class="text-error -mt-4 text-xs">{imageError}</p>
 			{/if}
 
-			<div class="card bg-base-100 shadow">
-				<div class="card-body">
-					<div class="flex items-center justify-between">
-						<h2 class="card-title text-base">
-							<Paperclip size={16} />
-							Attachments
-						</h2>
-						{#if !isMember}
-							<form method="post" action="?/uploadAttachment" enctype="multipart/form-data" use:enhance>
-								<label class="btn btn-ghost btn-sm">
-									<Upload size={14} />
-									Upload
-									<input
-										type="file"
-										name="file"
-										class="hidden"
-										onchange={(e) => e.currentTarget.form?.requestSubmit()}
-									/>
-								</label>
-							</form>
-						{/if}
+			{#if data.canViewAuditInfo}
+				<div class="card bg-base-100 shadow">
+					<div class="card-body">
+						<div class="flex items-center justify-between">
+							<h2 class="card-title text-base">
+								<Paperclip size={16} />
+								Attachments
+							</h2>
+							{#if !isMember}
+								<form method="post" action="?/uploadAttachment" enctype="multipart/form-data" use:enhance>
+									<label class="btn btn-ghost btn-sm">
+										<Upload size={14} />
+										Upload
+										<input
+											type="file"
+											name="file"
+											class="hidden"
+											onchange={(e) => e.currentTarget.form?.requestSubmit()}
+										/>
+									</label>
+								</form>
+							{/if}
+						</div>
+						<ul class="divide-base-300 mt-2 divide-y">
+							{#each data.attachments as file (file.id)}
+								<li class="flex items-center justify-between gap-4 py-2 text-sm">
+									<div>
+										<p class="font-medium">{file.fileName}</p>
+										<p class="text-base-content/50 text-xs">
+											{formatSize(file.sizeBytes)} · {file.uploadedByUser?.name} · {formatDate(file.createdAt)}
+										</p>
+									</div>
+									<div class="flex items-center gap-1">
+										<a
+											href={`/o/${data.organization.slug}/${data.objectType.slug}/${data.record.id}/attachments/${file.id}`}
+											data-sveltekit-reload
+											class="btn btn-ghost btn-xs"
+											aria-label="Download"
+										>
+											<Download size={14} />
+										</a>
+										{#if !isMember}
+											<form method="post" action="?/deleteAttachment" use:enhance>
+												<input type="hidden" name="attachmentId" value={file.id} />
+												<button type="submit" class="btn btn-ghost btn-xs text-error" aria-label="Delete">
+													<Trash size={14} />
+												</button>
+											</form>
+										{/if}
+									</div>
+								</li>
+							{:else}
+								<li class="text-base-content/60 py-2 text-sm">No attachments yet.</li>
+							{/each}
+						</ul>
 					</div>
-					<ul class="divide-base-300 mt-2 divide-y">
-						{#each data.attachments as file (file.id)}
-							<li class="flex items-center justify-between gap-4 py-2 text-sm">
-								<div>
-									<p class="font-medium">{file.fileName}</p>
-									<p class="text-base-content/50 text-xs">
-										{formatSize(file.sizeBytes)} · {file.uploadedByUser?.name} · {formatDate(file.createdAt)}
-									</p>
-								</div>
-								<div class="flex items-center gap-1">
-									<a
-										href={`/o/${data.organization.slug}/${data.objectType.slug}/${data.record.id}/attachments/${file.id}`}
-										data-sveltekit-reload
-										class="btn btn-ghost btn-xs"
-										aria-label="Download"
-									>
-										<Download size={14} />
-									</a>
-									{#if !isMember}
-										<form method="post" action="?/deleteAttachment" use:enhance>
-											<input type="hidden" name="attachmentId" value={file.id} />
-											<button type="submit" class="btn btn-ghost btn-xs text-error" aria-label="Delete">
-												<Trash size={14} />
-											</button>
-										</form>
-									{/if}
-								</div>
-							</li>
-						{:else}
-							<li class="text-base-content/60 py-2 text-sm">No attachments yet.</li>
-						{/each}
-					</ul>
 				</div>
-			</div>
 
-			<div class="card bg-base-100 shadow">
-				<div class="card-body">
-					<h2 class="card-title text-base">Activity</h2>
-					<ul class="mt-2 space-y-3">
-						{#each data.activity as entry (entry.id)}
-							<li class="flex justify-between gap-4 text-sm">
-								<span>
-									<span class="font-medium">{ACTIVITY_LABELS[entry.action] ?? entry.action}</span>
-									{#if entry.actor}
-										<span class="text-base-content/60"> by {entry.actor.name}</span>
-									{/if}
-								</span>
-								<span class="text-base-content/50">{formatDate(entry.createdAt)}</span>
-							</li>
-						{:else}
-							<li class="text-base-content/60 text-sm">No activity yet.</li>
-						{/each}
-					</ul>
+				<div class="card bg-base-100 shadow">
+					<div class="card-body">
+						<h2 class="card-title text-base">Activity</h2>
+						<ul class="mt-2 space-y-3">
+							{#each data.activity as entry (entry.id)}
+								<li class="flex justify-between gap-4 text-sm">
+									<span>
+										<span class="font-medium">{ACTIVITY_LABELS[entry.action] ?? entry.action}</span>
+										{#if entry.actor}
+											<span class="text-base-content/60"> by {entry.actor.name}</span>
+										{/if}
+									</span>
+									<span class="text-base-content/50">{formatDate(entry.createdAt)}</span>
+								</li>
+							{:else}
+								<li class="text-base-content/60 text-sm">No activity yet.</li>
+							{/each}
+						</ul>
+					</div>
 				</div>
-			</div>
+			{/if}
 		</div>
 	</div>
 </div>
@@ -772,6 +915,12 @@
 					</fieldset>
 				{/if}
 			{/if}
+			{#if data.objectType.eulaEnabled && (data.rules.targetType === 'user' || (data.rules.targetType === 'user_or_location' && assetAssignedToType === 'user'))}
+				<label class="label cursor-pointer gap-2">
+					<input type="checkbox" name="requiresEulaAcceptance" class="checkbox checkbox-sm" checked />
+					<span class="label-text">Require EULA acceptance to confirm receipt</span>
+				</label>
+			{/if}
 			<fieldset class="fieldset">
 				<legend class="fieldset-legend">Notes (optional)</legend>
 				<textarea name="notes" class="textarea w-full" rows="2"></textarea>
@@ -911,6 +1060,74 @@
 			<div class="modal-action">
 				<button type="button" class="btn" onclick={() => splitDialog.close()}>Cancel</button>
 				<button type="submit" class="btn btn-primary">Check in</button>
+			</div>
+		</form>
+	</div>
+	<form method="dialog" class="modal-backdrop">
+		<button>close</button>
+	</form>
+</dialog>
+
+<EulaAcceptModal
+	bind:open={eulaModalOpen}
+	checkoutId={eulaModalCheckoutId}
+	eulaText={data.objectType.eulaText ?? ''}
+	expectedName={data.user.name}
+	action="?/accept"
+/>
+
+<dialog bind:this={maintenanceDialog} class="modal">
+	<div class="modal-box">
+		<h3 class="text-lg font-semibold">Perform maintenance check</h3>
+		<form
+			method="post"
+			action="?/maintenanceCheck"
+			use:enhance={() => {
+				maintenanceError = '';
+				return async ({ result, update }) => {
+					if (result.type === 'failure') {
+						maintenanceError = (result.data?.message as string) ?? 'Could not record maintenance check';
+					} else {
+						await update();
+						maintenanceDialog.close();
+					}
+				};
+			}}
+			class="mt-4 space-y-4"
+		>
+			{#if conditionField}
+				<input type="hidden" name="conditionFieldKey" value={conditionField.key} />
+				<fieldset class="fieldset">
+					<legend class="fieldset-legend">Condition</legend>
+					<select name="conditionId" class="select w-full" bind:value={maintenanceConditionId}>
+						<option value="">Don't change</option>
+						{#each data.lookupValues.condition ?? [] as c (c.id)}
+							<option value={c.id}>{c.name}</option>
+						{/each}
+					</select>
+				</fieldset>
+			{/if}
+			<fieldset class="fieldset">
+				<legend class="fieldset-legend">Maintenance note (required)</legend>
+				<textarea
+					name="note"
+					required
+					rows="4"
+					class="textarea w-full"
+					placeholder={`e.g. "Checked and verified in good working condition." If any faults were found, describe them — and say whether they were fixed during this check.`}
+				></textarea>
+			</fieldset>
+			{#if maintenanceError}
+				<div class="alert alert-error text-sm">
+					<span>{maintenanceError}</span>
+				</div>
+			{/if}
+			<div class="modal-action">
+				<button type="button" class="btn" onclick={() => maintenanceDialog.close()}>Cancel</button>
+				<button type="submit" class="btn btn-primary">
+					<Wrench size={14} />
+					Save check
+				</button>
 			</div>
 		</form>
 	</div>

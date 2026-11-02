@@ -60,6 +60,8 @@ export interface LdapSettingsInput {
 	nameAttribute: string | null;
 	defaultOrganizationId: string | null;
 	defaultRole: string | null;
+	/** Newline-separated group DNs, stored as-is; parsed by `ldap.ts`'s `parseGroupDns`. */
+	groupDns: string | null;
 }
 
 export async function upsertLdapSettings(params: LdapSettingsInput): Promise<void> {
@@ -75,6 +77,7 @@ export async function upsertLdapSettings(params: LdapSettingsInput): Promise<voi
 		ldapNameAttribute: params.nameAttribute,
 		ldapDefaultOrganizationId: params.defaultOrganizationId,
 		ldapDefaultRole: params.defaultRole,
+		ldapGroupDns: params.groupDns,
 		...(params.bindPassword !== undefined ? { ldapBindPassword: params.bindPassword } : {})
 	};
 

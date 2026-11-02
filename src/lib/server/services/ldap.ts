@@ -9,6 +9,8 @@ export interface LdapConfig {
 	userFilter: string;
 	emailAttribute: string;
 	nameAttribute: string;
+	/** Optional extra sync sources — group DNs configured on the LDAP settings page. */
+	groupDns: string[];
 }
 
 /** Reads the saved LDAP config, throwing a friendly error if it isn't enabled/fully set up yet. */
@@ -27,14 +29,30 @@ export async function getLdapConfig(): Promise<LdapConfig> {
 		searchBase: settings.ldapSearchBase,
 		userFilter: settings.ldapUserFilter || '(objectClass=person)',
 		emailAttribute: settings.ldapEmailAttribute || 'mail',
-		nameAttribute: settings.ldapNameAttribute || 'cn'
+		nameAttribute: settings.ldapNameAttribute || 'cn',
+		groupDns: parseGroupDns(settings.ldapGroupDns)
 	};
+}
+
+/** One DN per line; blank lines ignored. Shared by the settings load and the save action. */
+export function parseGroupDns(raw: string | null | undefined): string[] {
+	return (raw ?? '')
+		.split('\n')
+		.map((line) => line.trim())
+		.filter(Boolean);
 }
 
 function firstValue(value: string | string[] | Buffer | Buffer[] | undefined): string {
 	if (Array.isArray(value)) return firstValue(value[0]);
 	if (Buffer.isBuffer(value)) return value.toString('utf8');
 	return value ?? '';
+}
+
+/** Normalizes a possibly-multi-valued attribute (e.g. a group's `member` list) to a string array. */
+function allValues(value: string | string[] | Buffer | Buffer[] | undefined): string[] {
+	if (value === undefined) return [];
+	const arr = Array.isArray(value) ? value : [value];
+	return arr.map((v) => (Buffer.isBuffer(v) ? v.toString('utf8') : v)).filter(Boolean);
 }
 
 /** Binds and immediately unbinds — just confirms the server/credentials work. */
@@ -102,6 +120,51 @@ export async function searchLdapUsers(config: LdapConfig): Promise<{ name: strin
 				email: firstValue(entry[config.emailAttribute] as string | string[] | undefined).toLowerCase()
 			}))
 			.filter((u) => u.name && u.email);
+	} finally {
+		await client.unbind().catch(() => {});
+	}
+}
+
+/**
+ * Syncing from a group instead of (or in addition to) the OU/filter above. Reads the group
+ * entry's own member list rather than relying on an AD-only `memberOf` overlay, so this works
+ * against plain OpenLDAP groups too: one lookup for the group's `member`/`uniqueMember` DNs,
+ * then one `scope: 'base'` lookup per member DN to read its name/email attributes.
+ */
+export async function searchLdapUsersByGroup(config: LdapConfig, groupDn: string): Promise<{ name: string; email: string }[]> {
+	const client = new Client({ url: config.url });
+	try {
+		await client.bind(config.bindDn, config.bindPassword);
+
+		const { searchEntries: groupEntries } = await client.search(groupDn, {
+			scope: 'base',
+			attributes: ['member', 'uniqueMember']
+		});
+		const group = groupEntries[0];
+		if (!group) return [];
+
+		const memberDns = [
+			...allValues(group.member as string | string[] | undefined),
+			...allValues(group.uniqueMember as string | string[] | undefined)
+		];
+
+		const users: { name: string; email: string }[] = [];
+		for (const memberDn of memberDns) {
+			try {
+				const { searchEntries } = await client.search(memberDn, {
+					scope: 'base',
+					attributes: [config.emailAttribute, config.nameAttribute]
+				});
+				const entry = searchEntries[0];
+				if (!entry) continue;
+				const name = firstValue(entry[config.nameAttribute] as string | string[] | undefined);
+				const email = firstValue(entry[config.emailAttribute] as string | string[] | undefined).toLowerCase();
+				if (name && email) users.push({ name, email });
+			} catch {
+				// A stale/unreadable member DN shouldn't abort the whole group sync.
+			}
+		}
+		return users;
 	} finally {
 		await client.unbind().catch(() => {});
 	}

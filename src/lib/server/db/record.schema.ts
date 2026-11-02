@@ -66,6 +66,15 @@ export const record = mysqlTable(
 		// true/false forces requestable on/off for this one record regardless of the type setting.
 		requestableOverride: boolean('requestable_override'),
 
+		// Recurring maintenance schedule (only meaningful when the object type has
+		// `maintenanceEnabled`) — null until an admin/manager configures it on this record.
+		maintenanceIntervalDays: int('maintenance_interval_days'),
+		maintenanceDueAt: timestamp('maintenance_due_at', { fsp: 3 }),
+		lastMaintenanceAt: timestamp('last_maintenance_at', { fsp: 3 }),
+		// Dedupe key for the reminder sweep's "once a day while overdue" cadence — set each time a
+		// reminder goes out, cleared the moment a maintenance check is actually performed.
+		maintenanceLastNotifiedAt: timestamp('maintenance_last_notified_at', { fsp: 3 }),
+
 		text1: varchar('text_1', { length: 500 }).generatedAlwaysAs(
 			sql`json_unquote(json_extract(\`data\`, '$.slots.text_1'))`,
 			{ mode: 'stored' }
@@ -184,7 +193,8 @@ export const record = mysqlTable(
 		index('record_select1_idx').on(t.organizationId, t.objectTypeId, t.select1),
 		index('record_select2_idx').on(t.organizationId, t.objectTypeId, t.select2),
 		index('record_select3_idx').on(t.organizationId, t.objectTypeId, t.select3),
-		index('record_select4_idx').on(t.organizationId, t.objectTypeId, t.select4)
+		index('record_select4_idx').on(t.organizationId, t.objectTypeId, t.select4),
+		index('record_maintenance_due_idx').on(t.organizationId, t.objectTypeId, t.maintenanceDueAt)
 	]
 );
 

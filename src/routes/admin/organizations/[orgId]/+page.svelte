@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { ExternalLink, RefreshCw } from '@lucide/svelte';
+	import MultiUserSelect from '$lib/components/MultiUserSelect.svelte';
+	import Pagination from '$lib/components/Pagination.svelte';
 	import type { ActionData, PageServerData } from './$types';
 
 	let { data, form }: { data: PageServerData; form: ActionData } = $props();
@@ -8,6 +10,11 @@
 	const roleOptions = ['owner', 'admin', 'manager', 'viewer', 'member'];
 	const memberUserIds = $derived(new Set(data.organization.members.map((m) => m.userId)));
 	const availableUsers = $derived(data.allUsers.filter((u) => !memberUserIds.has(u.id)));
+
+	let membersPage = $state(1);
+	const paginatedMembers = $derived(
+		data.organization.members.slice((membersPage - 1) * 25, membersPage * 25)
+	);
 </script>
 
 <div class="space-y-8">
@@ -43,12 +50,40 @@
 	{/if}
 
 	<section class="space-y-3">
+		<h2 class="font-medium">Add member</h2>
+		<form method="post" action="?/addMember" use:enhance class="card bg-base-100 shadow">
+			<div class="card-body flex-row flex-wrap items-end gap-3 py-4">
+				<fieldset class="fieldset min-w-64 flex-1">
+					<legend class="fieldset-legend">Users</legend>
+					<MultiUserSelect name="userIds" options={availableUsers} />
+				</fieldset>
+				<fieldset class="fieldset">
+					<legend class="fieldset-legend">Role</legend>
+					<select name="role" class="select capitalize">
+						{#each roleOptions as role (role)}
+							<option value={role} class="capitalize">{role}</option>
+						{/each}
+					</select>
+				</fieldset>
+				<fieldset class="fieldset">
+					<legend class="fieldset-legend" aria-hidden="true">&nbsp;</legend>
+					<button class="btn btn-primary">Add member</button>
+				</fieldset>
+			</div>
+		</form>
+		<p class="text-base-content/60 text-xs">
+			Need a new user first? Create one on the
+			<a href="/admin/users" class="link link-primary">Users</a> page.
+		</p>
+	</section>
+
+	<section class="space-y-3">
 		<h2 class="font-medium">Members</h2>
 		<div class="card bg-base-100 shadow">
 			<div class="overflow-x-auto">
 				<table class="table">
 					<tbody>
-						{#each data.organization.members as membership (membership.id)}
+						{#each paginatedMembers as membership (membership.id)}
 							<tr class="hover">
 								<td>
 									<p class="font-medium">{membership.user.name}</p>
@@ -82,39 +117,9 @@
 					</tbody>
 				</table>
 			</div>
-		</div>
-	</section>
-
-	<section class="space-y-3">
-		<h2 class="font-medium">Add member</h2>
-		<form method="post" action="?/addMember" use:enhance class="card bg-base-100 shadow">
-			<div class="card-body flex-row flex-wrap items-end gap-3 py-4">
-				<fieldset class="fieldset">
-					<legend class="fieldset-legend">User</legend>
-					<select name="userId" required class="select">
-						<option value="" disabled selected>Select a user</option>
-						{#each availableUsers as u (u.id)}
-							<option value={u.id}>{u.name} ({u.email})</option>
-						{/each}
-					</select>
-				</fieldset>
-				<fieldset class="fieldset">
-					<legend class="fieldset-legend">Role</legend>
-					<select name="role" class="select capitalize">
-						{#each roleOptions as role (role)}
-							<option value={role} class="capitalize">{role}</option>
-						{/each}
-					</select>
-				</fieldset>
-				<fieldset class="fieldset">
-					<legend class="fieldset-legend" aria-hidden="true">&nbsp;</legend>
-					<button class="btn btn-primary">Add member</button>
-				</fieldset>
+			<div class="card-body py-3">
+				<Pagination bind:page={membersPage} totalItems={data.organization.members.length} />
 			</div>
-		</form>
-		<p class="text-base-content/60 text-xs">
-			Need a new user first? Create one on the
-			<a href="/admin/users" class="link link-primary">Users</a> page.
-		</p>
+		</div>
 	</section>
 </div>

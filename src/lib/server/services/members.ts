@@ -4,6 +4,7 @@ import { auth } from '$lib/server/auth';
 import { db } from '$lib/server/db';
 import { member, organization as organizationTable, user as userTable } from '$lib/server/db/schema';
 import { sendEmail } from '$lib/server/email';
+import { renderTemplate } from '$lib/server/services/emailTemplates';
 import { logActivity } from './activityLog';
 
 /** Every organization a user belongs to, for the login org-picker and the in-app org switcher. */
@@ -106,10 +107,11 @@ export async function addUserToOrganization(
 	});
 
 	if (addedUser && organization) {
-		await sendEmail({
-			to: addedUser.email,
-			subject: `You've been added to ${organization.name}`,
-			html: `<p>You now have <strong>${role}</strong> access to <strong>${organization.name}</strong>.</p><p><a href="${env.ORIGIN ?? ''}/o/${organization.slug}">Open ${organization.name}</a></p>`
+		const { subject, html } = await renderTemplate('added_to_org', {
+			organizationName: organization.name,
+			role,
+			orgUrl: `${env.ORIGIN ?? ''}/o/${organization.slug}`
 		});
+		await sendEmail({ to: addedUser.email, subject, html });
 	}
 }

@@ -4,6 +4,7 @@ import { getObjectTypeSummaries } from '$lib/server/services/objectTypes';
 import { listMyOpenCheckouts, listOpenCheckouts } from '$lib/server/services/checkouts';
 import { cancelCheckoutRequest, listMyCheckoutRequests } from '$lib/server/services/checkoutRequests';
 import { listOrgActivity } from '$lib/server/services/activityLog';
+import { listEulaAttachmentsForCheckouts } from '$lib/server/services/attachments';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
@@ -15,7 +16,10 @@ export const load: PageServerLoad = async (event) => {
 			listMyCheckoutRequests(organization.id, user.id),
 			listMyOpenCheckouts(organization.id, user.id)
 		]);
-		return { organization, membership, isMemberView: true as const, myRequests, myCheckouts };
+		const myEulaAttachments = Object.fromEntries(
+			await listEulaAttachmentsForCheckouts(organization.id, myCheckouts.map((c) => c.id))
+		);
+		return { organization, membership, user, isMemberView: true as const, myRequests, myCheckouts, myEulaAttachments };
 	}
 
 	const [objectTypes, checkouts, activity, myCheckouts] = await Promise.all([
@@ -29,15 +33,20 @@ export const load: PageServerLoad = async (event) => {
 
 	const totalRecords = objectTypes.reduce((sum, t) => sum + t.recordCount, 0);
 	const overdueCount = checkouts.filter((c) => c.dueAt && new Date(c.dueAt).getTime() < Date.now()).length;
+	const myEulaAttachments = Object.fromEntries(
+		await listEulaAttachmentsForCheckouts(organization.id, myCheckouts.map((c) => c.id))
+	);
 
 	return {
 		organization,
 		membership,
+		user,
 		isMemberView: false as const,
 		objectTypes,
 		checkouts,
 		activity,
 		myCheckouts,
+		myEulaAttachments,
 		totalRecords,
 		overdueCount
 	};

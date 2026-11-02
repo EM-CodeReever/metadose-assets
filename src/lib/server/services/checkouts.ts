@@ -6,7 +6,10 @@ import { checkout, record, objectType, member, location, organization, lookupVal
 import { logActivity } from './activityLog';
 import { buildSlotsJson } from './records';
 import { sendEmail } from '$lib/server/email';
+import { renderTemplate } from '$lib/server/services/emailTemplates';
 import { getObjectType, type BuiltinKind } from './objectTypes';
+import { renderEulaAcceptancePdf } from './eulaPdf';
+import { storeGeneratedPdfAttachment } from './attachments';
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0] | typeof db;
 
@@ -200,6 +203,9 @@ export async function checkoutRecord(params: {
 	dueAt?: Date;
 	notes?: string;
 	checkedOutBy: string;
+	/** Only meaningful when the object type has `eulaEnabled` — whoever is creating this checkout
+	 *  chooses whether this particular one actually requires it. */
+	requiresEulaAcceptance?: boolean;
 }): Promise<void> {
 	const rec = await getRecordWithKind(params.organizationId, params.recordId);
 	const rules = rulesFor(rec.objectType);
@@ -278,7 +284,8 @@ export async function checkoutRecord(params: {
 			assignedToRecordId: params.assignedToType === 'asset' ? params.assignedToRecordId : null,
 			checkedOutBy: params.checkedOutBy,
 			dueAt: params.dueAt,
-			notes: params.notes
+			notes: params.notes,
+			requiresEulaAcceptance: params.requiresEulaAcceptance ?? false
 		});
 
 		if (!rules.quantityBased) {
@@ -521,31 +528,85 @@ export async function listCheckoutsForUser(organizationId: string, userId: strin
 	});
 }
 
+/** Case/whitespace-insensitive compare used to check a typed EULA confirmation against a real name. */
+function namesMatch(typed: string, actual: string): boolean {
+	const normalize = (s: string) => s.trim().replace(/\s+/g, ' ').toLowerCase();
+	return normalize(typed) === normalize(actual);
+}
+
 /**
- * The assignee's own one-click acknowledgment that they've received a checked-out item —
- * distinct from check-in. Only the person it's assigned to may accept it.
+ * The assignee's own acknowledgment that they've received a checked-out item — distinct from
+ * check-in. Only the person it's assigned to may accept it. When the checkout requires EULA
+ * acceptance, `typedName` must be supplied and must match the assignee's own name on file.
  */
-export async function acceptCheckout(organizationId: string, checkoutId: string, userId: string): Promise<void> {
+export async function acceptCheckout(
+	organizationId: string,
+	checkoutId: string,
+	userId: string,
+	typedName?: string
+): Promise<void> {
 	const existing = await db.query.checkout.findFirst({
 		where: and(
 			eq(checkout.organizationId, organizationId),
 			eq(checkout.id, checkoutId),
 			isNull(checkout.checkedInAt)
-		)
+		),
+		with: { assignedToUser: true, record: { with: { objectType: true } } }
 	});
 	if (!existing) throw new Error('This checkout is not currently open');
 	if (existing.assignedToUserId !== userId) throw new Error('This is not assigned to you');
 	if (existing.acceptedAt) return;
 
+	if (existing.requiresEulaAcceptance) {
+		const actualName = existing.assignedToUser?.name ?? '';
+		if (!typedName?.trim() || !namesMatch(typedName, actualName)) {
+			throw new Error('Type your name exactly as shown to confirm.');
+		}
+	}
+
+	const confirmedName = existing.requiresEulaAcceptance ? typedName!.trim() : null;
+
 	await db.transaction(async (tx) => {
-		await tx.update(checkout).set({ acceptedAt: new Date() }).where(eq(checkout.id, existing.id));
+		await tx
+			.update(checkout)
+			.set({ acceptedAt: new Date(), eulaAcceptedName: confirmedName })
+			.where(eq(checkout.id, existing.id));
 		await logActivity(tx, {
 			organizationId,
 			recordId: existing.recordId,
 			actorUserId: userId,
-			action: 'record.accepted'
+			action: 'record.accepted',
+			summary: confirmedName ? `Receipt confirmed (EULA accepted as "${confirmedName}")` : undefined
 		});
 	});
+
+	// A permanent snapshot of this exact acceptance — generated after the transaction commits, tied
+	// to this one checkout, so a later edit to the object type's live agreement (or a future
+	// reassignment to someone else) never alters or replaces an already-issued record.
+	if (existing.requiresEulaAcceptance && confirmedName) {
+		const org = await db.query.organization.findFirst({ where: eq(organization.id, organizationId) });
+		const recordName = String(existing.record.data.values.name ?? existing.record.objectType.name);
+		const acceptedAt = new Date();
+		const pdfBuffer = await renderEulaAcceptancePdf({
+			organizationName: org?.name ?? '',
+			recordName,
+			objectTypeName: existing.record.objectType.name,
+			assigneeName: existing.assignedToUser?.name ?? '',
+			assigneeEmail: existing.assignedToUser?.email ?? '',
+			typedName: confirmedName,
+			acceptedAt,
+			eulaHtml: existing.record.objectType.eulaText ?? ''
+		});
+		await storeGeneratedPdfAttachment({
+			organizationId,
+			recordId: existing.recordId,
+			sourceCheckoutId: existing.id,
+			fileName: `EULA - ${recordName} - ${confirmedName} - ${acceptedAt.toISOString().slice(0, 10)}.pdf`,
+			buffer: pdfBuffer,
+			uploadedBy: userId,
+			activitySummary: `EULA acceptance record generated for ${existing.assignedToUser?.name ?? 'the assignee'}`
+		});
+	}
 }
 
 /** Emails the assignee a nudge to confirm receipt of a checkout that's still awaiting it. */
@@ -564,11 +625,8 @@ export async function sendAcceptanceReminder(organizationId: string, checkoutId:
 	const recordName = String(existing.record.data.values.name ?? existing.record.objectType.name);
 	const link = `${env.ORIGIN ?? ''}/o/${org?.slug}/${existing.record.objectType.slug}/${existing.record.id}`;
 
-	await sendEmail({
-		to: existing.assignedToUser.email,
-		subject: `Reminder: confirm receipt of ${recordName}`,
-		html: `<p><strong>${recordName}</strong> was checked out to you and is still awaiting your confirmation of receipt.</p><p><a href="${link}">View it and confirm receipt</a></p>`
-	});
+	const { subject, html } = await renderTemplate('checkout_reminder', { recordName, link });
+	await sendEmail({ to: existing.assignedToUser.email, subject, html });
 
 	await logActivity(db, {
 		organizationId,

@@ -36,6 +36,7 @@ export const actions: Actions = {
 		const requestable = formData.get('requestable') === 'on';
 		const quantityFieldKeyInput = formData.get('quantityFieldKey')?.toString();
 		const allowComponentInstall = formData.get('allowComponentInstall') === 'on';
+		const maintenanceEnabled = formData.get('maintenanceEnabled') === 'on';
 
 		if (!name) return fail(400, { message: 'Name is required' });
 		if (barcodeFieldKeys.length > 3) return fail(400, { message: 'Choose up to 3 label fields' });
@@ -50,6 +51,7 @@ export const actions: Actions = {
 
 		const isBulkCustomType = objectType.builtinKind === 'custom' && objectType.trackingMode === 'bulk';
 		const isIndividualCustomType = objectType.builtinKind === 'custom' && objectType.trackingMode === 'individual';
+		const isIndividuallyTracked = objectType.builtinKind === 'asset' || isIndividualCustomType;
 		const validNumberKeys = new Set(objectType.fields.filter((f) => f.dataType === 'number').map((f) => f.key));
 		const quantityFieldKey =
 			isBulkCustomType && quantityFieldKeyInput && validNumberKeys.has(quantityFieldKeyInput)
@@ -65,7 +67,8 @@ export const actions: Actions = {
 				barcodeFieldKeys: filteredKeys.length > 0 ? filteredKeys : null,
 				requestable: objectType.builtinKind === 'component' ? objectType.requestable : requestable,
 				...(isBulkCustomType ? { quantityFieldKey } : {}),
-				...(isIndividualCustomType ? { allowComponentInstall } : {})
+				...(isIndividualCustomType ? { allowComponentInstall } : {}),
+				...(isIndividuallyTracked ? { maintenanceEnabled } : {})
 			},
 			user.id
 		);

@@ -1,11 +1,21 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { Activity, ArrowLeftRight, Boxes, Package, PackageCheck, TriangleAlert, UserRound } from '@lucide/svelte';
+	import EulaAcceptModal from '$lib/components/EulaAcceptModal.svelte';
 	import type { PageServerData } from './$types';
 
 	let { data }: { data: PageServerData } = $props();
 
 	let adminViewMode = $state<'admin' | 'member'>('admin');
+
+	type Checkout = PageServerData['myCheckouts'][number];
+	let eulaModalOpen = $state(false);
+	let eulaModalCheckout = $state<Checkout | null>(null);
+
+	function openEulaModal(c: Checkout) {
+		eulaModalCheckout = c;
+		eulaModalOpen = true;
+	}
 
 	const REQUEST_STATUS_BADGE: Record<string, string> = {
 		pending: 'badge-ghost',
@@ -71,6 +81,19 @@
 									<td class="text-right">
 										{#if c.acceptedAt}
 											<span class="badge badge-ghost badge-sm">Receipt confirmed</span>
+											{#if data.myEulaAttachments[c.id]}
+												<a
+													href={`/o/${data.organization.slug}/${c.record.objectType.slug}/${c.recordId}/attachments/${data.myEulaAttachments[c.id].id}`}
+													data-sveltekit-reload
+													class="link link-primary ml-2 text-xs"
+												>
+													Download agreement
+												</a>
+											{/if}
+										{:else if c.requiresEulaAcceptance}
+											<button type="button" class="btn btn-success btn-xs" onclick={() => openEulaModal(c)}>
+												Confirm receipt
+											</button>
 										{:else}
 											<form method="post" action={`/o/${data.organization.slug}/${c.record.objectType.slug}/${c.recordId}?/accept`} use:enhance>
 												<input type="hidden" name="checkoutId" value={c.id} />
@@ -175,6 +198,19 @@
 									<td class="text-right">
 										{#if c.acceptedAt}
 											<span class="badge badge-ghost badge-sm">Receipt confirmed</span>
+											{#if data.myEulaAttachments[c.id]}
+												<a
+													href={`/o/${data.organization.slug}/${c.record.objectType.slug}/${c.recordId}/attachments/${data.myEulaAttachments[c.id].id}`}
+													data-sveltekit-reload
+													class="link link-primary ml-2 text-xs"
+												>
+													Download agreement
+												</a>
+											{/if}
+										{:else if c.requiresEulaAcceptance}
+											<button type="button" class="btn btn-success btn-xs" onclick={() => openEulaModal(c)}>
+												Confirm receipt
+											</button>
 										{:else}
 											<form
 												method="post"
@@ -317,4 +353,14 @@
 	</div>
 	{/if}
 </div>
+{/if}
+
+{#if eulaModalCheckout}
+	<EulaAcceptModal
+		bind:open={eulaModalOpen}
+		checkoutId={eulaModalCheckout.id}
+		eulaText={eulaModalCheckout.record.objectType.eulaText ?? ''}
+		expectedName={data.user.name}
+		action={`/o/${data.organization.slug}/${eulaModalCheckout.record.objectType.slug}/${eulaModalCheckout.recordId}?/accept`}
+	/>
 {/if}

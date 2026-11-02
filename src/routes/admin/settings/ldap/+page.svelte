@@ -1,14 +1,12 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { untrack } from 'svelte';
-	import { CircleX, Plug, RefreshCw } from '@lucide/svelte';
+	import { ArrowRight, Plug, RefreshCw } from '@lucide/svelte';
 	import type { ActionData, PageServerData } from './$types';
 
 	let { data, form }: { data: PageServerData; form: ActionData } = $props();
 
 	const ROLE_OPTIONS = ['owner', 'admin', 'manager', 'viewer', 'member'];
-	let syncOrganizationId = $state(untrack(() => data.ldap.defaultOrganizationId));
-	let syncRole = $state(untrack(() => data.ldap.defaultRole || 'member'));
+	let testingConnection = $state(false);
 </script>
 
 <div class="mx-auto max-w-6xl space-y-6 2xl:max-w-[1600px]">
@@ -83,7 +81,7 @@
 					</div>
 
 					<div class="border-base-300 border-t pt-4">
-						<p class="text-base-content/60 mb-2 text-sm">Default organization/role for a sync, unless overridden below.</p>
+						<p class="text-base-content/60 mb-2 text-sm">Default organization/role for a sync, unless overridden there.</p>
 						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 							<fieldset class="fieldset">
 								<legend class="fieldset-legend">Organization</legend>
@@ -105,18 +103,38 @@
 						</div>
 					</div>
 
-					{#if form?.message && !form?.tested && !form?.synced}
-						<div class="alert alert-error text-sm">
-							<span>{form.message}</span>
-						</div>
-					{/if}
-					{#if form?.success && !form?.tested && !form?.synced}
-						<div class="alert alert-success text-sm">
-							<span>Saved.</span>
-						</div>
-					{/if}
+					<div class="border-base-300 border-t pt-4">
+						<fieldset class="fieldset">
+							<legend class="fieldset-legend">Sync from groups (optional)</legend>
+							<textarea
+								name="groupDns"
+								rows="3"
+								class="textarea w-full font-mono text-xs"
+								placeholder={'cn=engineering,ou=groups,dc=example,dc=com\ncn=sales,ou=groups,dc=example,dc=com'}
+							>{data.ldap.groupDns}</textarea>
+							<p class="text-base-content/50 text-xs">
+								One group DN per line. When set, the sync page lets you pick these groups as
+								extra sources alongside (or instead of) the OU/filter above.
+							</p>
+						</fieldset>
+					</div>
 
-					<button type="submit" class="btn btn-primary">Save</button>
+					<div class="block">
+						{#if form?.message && !form?.tested}
+							<div class="alert alert-error text-sm">
+								<span>{form.message}</span>
+							</div>
+						{/if}
+						{#if form?.success && !form?.tested}
+							<div class="alert alert-success text-sm">
+								<span>Saved.</span>
+							</div>
+						{/if}
+					</div>
+
+					<div class="flex justify-end pt-2">
+						<button type="submit" class="btn btn-primary">Save</button>
+					</div>
 				</form>
 			</div>
 		</div>
@@ -125,10 +143,25 @@
 			<div class="card bg-base-100 shadow">
 				<div class="card-body space-y-4">
 					<h2 class="card-title text-base">Test connection</h2>
-					<form method="post" action="?/test" use:enhance>
-						<button type="submit" class="btn btn-outline btn-sm w-full">
-							<Plug size={14} />
-							Test connection
+					<form
+						method="post"
+						action="?/test"
+						use:enhance={() => {
+							testingConnection = true;
+							return async ({ update }) => {
+								await update();
+								testingConnection = false;
+							};
+						}}
+					>
+						<button type="submit" class="btn btn-outline btn-sm w-full" disabled={testingConnection}>
+							{#if testingConnection}
+								<span class="loading loading-spinner loading-xs"></span>
+								Testing...
+							{:else}
+								<Plug size={14} />
+								Test connection
+							{/if}
 						</button>
 					</form>
 					{#if form?.tested}
@@ -143,60 +176,16 @@
 
 			<div class="card bg-base-100 shadow">
 				<div class="card-body space-y-4">
-					<h2 class="card-title text-base">Sync now</h2>
+					<h2 class="card-title text-base">Sync users</h2>
 					<p class="text-base-content/60 text-sm">
-						Pulls every user matching the filter above, right now (not scheduled).
+						Search first, then pick exactly who to bring in — a dedicated page so you can review
+						matches before anything is created.
 					</p>
-					<form method="post" action="?/sync" use:enhance class="space-y-4">
-						<fieldset class="fieldset">
-							<legend class="fieldset-legend">Add to organization</legend>
-							<select name="organizationId" bind:value={syncOrganizationId} class="select w-full">
-								<option value="">Don't add to an organization</option>
-								{#each data.organizations as org (org.id)}
-									<option value={org.id}>{org.name}</option>
-								{/each}
-							</select>
-						</fieldset>
-						{#if syncOrganizationId}
-							<fieldset class="fieldset">
-								<legend class="fieldset-legend">Role</legend>
-								<select name="role" bind:value={syncRole} class="select w-full">
-									{#each ROLE_OPTIONS as r (r)}
-										<option value={r}>{r}</option>
-									{/each}
-								</select>
-							</fieldset>
-						{/if}
-						<button type="submit" class="btn btn-primary btn-sm w-full">
-							<RefreshCw size={14} />
-							Sync now
-						</button>
-					</form>
-
-					{#if form?.synced}
-						{#if form?.success}
-							<div class="alert {form.failed > 0 ? 'alert-warning' : 'alert-success'} text-sm">
-								<span>
-									Created/added {form.created} user{form.created === 1 ? '' : 's'}.
-									{#if form.failed > 0}{form.failed} row{form.failed === 1 ? '' : 's'} failed.{/if}
-								</span>
-							</div>
-							{#if form.errors?.length > 0}
-								<ul class="divide-base-300 divide-y text-sm">
-									{#each form.errors as err (err.row)}
-										<li class="flex items-start gap-2 py-2">
-											<CircleX size={14} class="text-error mt-0.5 shrink-0" />
-											<span>{err.message}</span>
-										</li>
-									{/each}
-								</ul>
-							{/if}
-						{:else if form?.message}
-							<div class="alert alert-error text-sm">
-								<span>{form.message}</span>
-							</div>
-						{/if}
-					{/if}
+					<a href="/admin/settings/ldap/sync" class="btn btn-primary btn-sm w-full">
+						<RefreshCw size={14} />
+						Go to LDAP sync
+						<ArrowRight size={14} />
+					</a>
 				</div>
 			</div>
 		</div>

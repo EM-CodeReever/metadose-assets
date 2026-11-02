@@ -321,6 +321,9 @@ export async function updateObjectType(
 		requestable?: boolean;
 		quantityFieldKey?: string | null;
 		allowComponentInstall?: boolean;
+		eulaEnabled?: boolean;
+		eulaText?: string | null;
+		maintenanceEnabled?: boolean;
 	},
 	actorUserId: string
 ) {

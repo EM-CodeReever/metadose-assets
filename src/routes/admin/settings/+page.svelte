@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Clock, Mail, Network } from '@lucide/svelte';
+	import { Clock, Mail, MailPlus, Network } from '@lucide/svelte';
 
 	const CARDS = [
 		{
@@ -19,6 +19,12 @@
 			icon: Clock,
 			title: 'Timezone',
 			description: 'The zone every date/time across the app is shown in.'
+		},
+		{
+			href: '/admin/settings/emails',
+			icon: MailPlus,
+			title: 'Email templates',
+			description: 'Edit the subject/body of every email the app sends out.'
 		}
 	];
 </script>

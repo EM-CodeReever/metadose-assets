@@ -47,18 +47,38 @@ export const actions: Actions = {
 	addMember: async (event) => {
 		const actor = requireSuperAdmin(event);
 		const formData = await event.request.formData();
-		const userId = formData.get('userId')?.toString();
 		const role = parseOrgRole(formData.get('role')?.toString(), 'viewer');
-		if (!userId) return fail(400, { message: 'Select a user' });
 
+		let userIds: string[];
 		try {
-			await addUserToOrganization(event.params.orgId, userId, role, event.request.headers, actor.id);
-		} catch (err) {
-			if (err instanceof APIError) return fail(400, { message: err.message || 'Could not add member' });
-			throw err;
+			userIds = JSON.parse(formData.get('userIds')?.toString() ?? '[]');
+		} catch {
+			return fail(400, { message: 'Invalid selection' });
+		}
+		if (!Array.isArray(userIds) || userIds.length === 0) return fail(400, { message: 'Select at least one user' });
+
+		const results: { userId: string; success: boolean; message?: string }[] = [];
+		for (const userId of userIds) {
+			try {
+				await addUserToOrganization(event.params.orgId, userId, role, event.request.headers, actor.id);
+				results.push({ userId, success: true });
+			} catch (err) {
+				const message = err instanceof APIError ? err.message : err instanceof Error ? err.message : 'Could not add member';
+				results.push({ userId, success: false, message });
+			}
 		}
 
-		return { success: true };
+		const failed = results.filter((r) => !r.success);
+		if (failed.length > 0 && failed.length === results.length) {
+			return fail(400, { message: failed[0].message ?? 'Could not add any of the selected users' });
+		}
+
+		return {
+			success: true,
+			added: results.length - failed.length,
+			failed: failed.length,
+			errors: failed
+		};
 	},
 
 	updateRole: async (event) => {

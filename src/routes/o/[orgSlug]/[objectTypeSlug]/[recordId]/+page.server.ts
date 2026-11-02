@@ -27,12 +27,22 @@ import {
 } from '$lib/server/services/checkouts';
 import { createCheckoutRequest, listMyCheckoutRequests } from '$lib/server/services/checkoutRequests';
 import { listActivityForRecord } from '$lib/server/services/activityLog';
-import { deleteAttachment, listAttachments, uploadAttachment } from '$lib/server/services/attachments';
+import {
+	deleteAttachment,
+	listAttachments,
+	listEulaAttachmentsForCheckouts,
+	uploadAttachment
+} from '$lib/server/services/attachments';
 import { listAllLookupValues } from '$lib/server/services/lookupValues';
+import {
+	listMaintenanceChecks,
+	performMaintenanceCheck,
+	setMaintenanceSchedule
+} from '$lib/server/services/maintenance';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
-	const { organization, membership, user, timezone } = await event.parent();
+	const { organization, membership, user, timezone, isSuperAdminAccess } = await event.parent();
 	const objectType = await getObjectTypeBySlug(organization.id, event.params.objectTypeSlug);
 	if (!objectType) throw error(404, 'Object type not found');
 
@@ -41,18 +51,33 @@ export const load: PageServerLoad = async (event) => {
 
 	const rules = rulesFor(objectType);
 	const canHoldComponents = canInstallComponentsInto(objectType);
+	// Only the roles that actually operate records day to day get the audit trail — member/viewer
+	// are read-mostly/request-only roles with no business reason to browse it. A super-admin's
+	// "support access" view (no membership row at all) counts as full access too.
+	const canViewAuditInfo =
+		isSuperAdminAccess || membership?.role === 'owner' || membership?.role === 'admin' || membership?.role === 'manager';
 
-	const [orgUsers, locations, openCheckouts, activity, attachments, assetOptions, lookupValues, installedComponents] =
-		await Promise.all([
-			listOrgUsers(organization.id),
-			listLocations(organization.id),
-			listOpenCheckoutsForRecord(organization.id, record.id),
-			listActivityForRecord(organization.id, record.id),
-			listAttachments(organization.id, record.id),
-			objectType.builtinKind === 'component' ? listAssetRecordsForPicker(organization.id) : Promise.resolve([]),
-			listAllLookupValues(organization.id),
-			canHoldComponents ? listInstalledComponents(organization.id, record.id) : Promise.resolve([])
-		]);
+	const [
+		orgUsers,
+		locations,
+		openCheckouts,
+		activity,
+		attachments,
+		assetOptions,
+		lookupValues,
+		installedComponents,
+		maintenanceChecks
+	] = await Promise.all([
+		listOrgUsers(organization.id),
+		listLocations(organization.id),
+		listOpenCheckoutsForRecord(organization.id, record.id),
+		canViewAuditInfo ? listActivityForRecord(organization.id, record.id) : Promise.resolve([]),
+		canViewAuditInfo ? listAttachments(organization.id, record.id) : Promise.resolve([]),
+		objectType.builtinKind === 'component' ? listAssetRecordsForPicker(organization.id) : Promise.resolve([]),
+		listAllLookupValues(organization.id),
+		canHoldComponents ? listInstalledComponents(organization.id, record.id) : Promise.resolve([]),
+		objectType.maintenanceEnabled ? listMaintenanceChecks(organization.id, record.id) : Promise.resolve([])
+	]);
 
 	const availableQuantity = rules.quantityBased
 		? await getAvailableQuantity(organization.id, record.id, Number(record.data.values[rules.quantityFieldKey]) || 0)
@@ -65,6 +90,14 @@ export const load: PageServerLoad = async (event) => {
 				)
 			: false;
 
+	// Self-service: regardless of role, whoever a currently-open checkout is assigned to can get
+	// back to their own signed EULA PDF, even though the general attachments list above may be
+	// hidden from them.
+	const myOpenCheckoutIds = openCheckouts.filter((c) => c.assignedToUserId === user.id).map((c) => c.id);
+	const myEulaAttachments = Object.fromEntries(
+		await listEulaAttachmentsForCheckouts(organization.id, myOpenCheckoutIds)
+	);
+
 	return {
 		organization,
 		membership,
@@ -74,15 +107,18 @@ export const load: PageServerLoad = async (event) => {
 		record,
 		rules,
 		canHoldComponents,
+		canViewAuditInfo,
 		orgUsers,
 		locations,
 		openCheckouts,
 		activity,
 		attachments,
+		myEulaAttachments,
 		assetOptions,
 		availableQuantity,
 		lookupValues,
 		installedComponents,
+		maintenanceChecks,
 		hasPendingRequest
 	};
 };
@@ -137,6 +173,7 @@ export const actions: Actions = {
 		const quantityRaw = formData.get('quantity')?.toString();
 		const dueAtRaw = formData.get('dueAt')?.toString();
 		const notes = formData.get('notes')?.toString().trim() || undefined;
+		const requiresEulaAcceptance = formData.get('requiresEulaAcceptance') === 'on';
 
 		if (assignedToType !== 'user' && assignedToType !== 'location' && assignedToType !== 'asset') {
 			return fail(400, { message: 'Choose who or where this is checked out to' });
@@ -161,7 +198,8 @@ export const actions: Actions = {
 				assignedToRecordId,
 				dueAt,
 				notes,
-				checkedOutBy: user.id
+				checkedOutBy: user.id,
+				requiresEulaAcceptance
 			});
 		} catch (err) {
 			return fail(400, { message: err instanceof Error ? err.message : 'Could not check out record' });
@@ -336,10 +374,11 @@ export const actions: Actions = {
 
 		const formData = await event.request.formData();
 		const checkoutId = formData.get('checkoutId')?.toString();
+		const typedName = formData.get('typedName')?.toString();
 		if (!checkoutId) return fail(400, { message: 'Missing checkout' });
 
 		try {
-			await acceptCheckout(orgMembership.organization.id, checkoutId, user.id);
+			await acceptCheckout(orgMembership.organization.id, checkoutId, user.id, typedName);
 		} catch (err) {
 			return fail(400, { message: err instanceof Error ? err.message : 'Could not confirm receipt' });
 		}
@@ -379,5 +418,54 @@ export const actions: Actions = {
 		}
 
 		return { success: true, requested: true };
+	},
+
+	setMaintenanceSchedule: async (event) => {
+		const user = requireUser(event);
+		const orgMembership = await resolveOrgMembership(event, event.params.orgSlug);
+		const permissionError = await requireOrgPermissionOrFail(event, orgMembership, { record: ['update'] });
+		if (permissionError) return permissionError;
+
+		const formData = await event.request.formData();
+		const intervalRaw = formData.get('intervalDays')?.toString();
+		const intervalDays = intervalRaw ? Number(intervalRaw) : null;
+		if (intervalDays !== null && (!Number.isFinite(intervalDays) || intervalDays <= 0)) {
+			return fail(400, { message: 'Enter a valid number of days' });
+		}
+
+		try {
+			await setMaintenanceSchedule(orgMembership.organization.id, event.params.recordId, intervalDays, user.id);
+		} catch (err) {
+			return fail(400, { message: err instanceof Error ? err.message : 'Could not set maintenance schedule' });
+		}
+
+		return { success: true };
+	},
+
+	maintenanceCheck: async (event) => {
+		const user = requireUser(event);
+		const orgMembership = await resolveOrgMembership(event, event.params.orgSlug);
+		const permissionError = await requireOrgPermissionOrFail(event, orgMembership, { record: ['update'] });
+		if (permissionError) return permissionError;
+
+		const formData = await event.request.formData();
+		const note = formData.get('note')?.toString() ?? '';
+		const conditionId = formData.get('conditionId')?.toString() || undefined;
+		const conditionFieldKey = formData.get('conditionFieldKey')?.toString() || undefined;
+
+		try {
+			await performMaintenanceCheck({
+				organizationId: orgMembership.organization.id,
+				recordId: event.params.recordId,
+				performedBy: user.id,
+				note,
+				conditionId,
+				conditionFieldKey
+			});
+		} catch (err) {
+			return fail(400, { message: err instanceof Error ? err.message : 'Could not record maintenance check' });
+		}
+
+		return { success: true, maintenanceChecked: true };
 	}
 };

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { KeyRound, Network, Search, ShieldCheck, Users as UsersIcon } from '@lucide/svelte';
 	import { orgRoleBadgeClass, orgRoleIcon } from '$lib/badgeStyles';
+	import Pagination from '$lib/components/Pagination.svelte';
 	import type { PageServerData } from './$types';
 
 	let { data }: { data: PageServerData } = $props();
@@ -20,6 +21,13 @@
 			return matchesRole && matchesAuth && matchesSearch;
 		})
 	);
+
+	let page = $state(1);
+	const paginatedMembers = $derived(filteredMembers.slice((page - 1) * 25, page * 25));
+	$effect(() => {
+		filteredMembers;
+		page = 1;
+	});
 </script>
 
 <div class="space-y-6">
@@ -67,7 +75,7 @@
 					</tr>
 				</thead>
 				<tbody>
-					{#each filteredMembers as m (m.id)}
+					{#each paginatedMembers as m (m.id)}
 						{@const RoleIcon = orgRoleIcon(m.role)}
 						<tr
 							class="hover cursor-pointer"
@@ -120,6 +128,9 @@
 					{/each}
 				</tbody>
 			</table>
+		</div>
+		<div class="card-body py-3">
+			<Pagination bind:page totalItems={filteredMembers.length} />
 		</div>
 	</div>
 </div>

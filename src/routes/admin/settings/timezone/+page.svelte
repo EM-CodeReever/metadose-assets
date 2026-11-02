@@ -28,18 +28,22 @@
 					</select>
 				</fieldset>
 
-				{#if form?.message}
-					<div class="alert alert-error text-sm">
-						<span>{form.message}</span>
-					</div>
-				{/if}
-				{#if form?.success}
-					<div class="alert alert-success text-sm">
-						<span>Saved.</span>
-					</div>
-				{/if}
+				<div class="block">
+					{#if form?.message}
+						<div class="alert alert-error text-sm">
+							<span>{form.message}</span>
+						</div>
+					{/if}
+					{#if form?.success}
+						<div class="alert alert-success text-sm">
+							<span>Saved.</span>
+						</div>
+					{/if}
+				</div>
 
-				<button type="submit" class="btn btn-primary">Save</button>
+				<div class="flex justify-end pt-2">
+					<button type="submit" class="btn btn-primary">Save</button>
+				</div>
 			</form>
 		</div>
 	</div>

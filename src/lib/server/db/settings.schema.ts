@@ -1,4 +1,4 @@
-import { mysqlTable, varchar, int, boolean, timestamp } from 'drizzle-orm/mysql-core';
+import { mysqlTable, varchar, int, boolean, timestamp, text } from 'drizzle-orm/mysql-core';
 import { organization } from './auth.schema';
 
 /**
@@ -31,6 +31,10 @@ export const instanceSettings = mysqlTable('instance_settings', {
 		{ onDelete: 'set null' }
 	),
 	ldapDefaultRole: varchar('ldap_default_role', { length: 50 }),
+	// Optional extra sync sources beyond the OU/filter above — one group DN per line, each
+	// resolved by reading that group entry's own member list rather than relying on an
+	// AD-only `memberOf` overlay (see `searchLdapUsersByGroup`).
+	ldapGroupDns: text('ldap_group_dns'),
 
 	// IANA zone name (e.g. "America/Jamaica") used to render every date/time shown across the
 	// app, instead of each viewer's own browser/OS timezone — keeps timestamps consistent for a
